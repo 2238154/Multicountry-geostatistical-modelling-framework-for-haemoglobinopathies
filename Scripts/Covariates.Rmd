@@ -1,0 +1,802 @@
+---
+title: "Covariate rasterization"
+author: "Mikaella Kontopoulou"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    self_contained: true
+    thumbnails: true
+    number_sections: true
+    code_folding: show 
+    css: "styles.css"
+---
+
+# Load packages
+```{r load-packages}
+suppressMessages(suppressWarnings(library(haven))) 
+suppressMessages(suppressWarnings(library(broom)))
+suppressMessages(suppressWarnings(library(data.table)))
+suppressMessages(suppressWarnings(library(DescTools)))
+suppressMessages(suppressWarnings(library(fields)))
+suppressMessages(suppressWarnings(library(foreign)))
+suppressMessages(suppressWarnings(library(MASS)))
+suppressMessages(suppressWarnings(library(naniar)))
+suppressMessages(suppressWarnings(library(plyr)))
+suppressMessages(suppressWarnings(library(raster)))
+suppressMessages(suppressWarnings(library(readstata13)))
+suppressMessages(suppressWarnings(library(rms)))
+suppressMessages(suppressWarnings(library(spdep)))
+suppressMessages(suppressWarnings(library(summarytools)))
+suppressMessages(suppressWarnings(library(tidyverse)))
+suppressMessages(suppressWarnings(library(lubridate)))
+suppressMessages(suppressWarnings(library(zoo)))
+suppressMessages(suppressWarnings(library(stringi)))
+suppressMessages(suppressWarnings(library(leaflet)))
+suppressMessages(suppressWarnings(library(stars)))
+suppressMessages(suppressWarnings(library(htmlwidgets)))
+suppressMessages(suppressWarnings(library(sf)))
+suppressMessages(suppressWarnings(library(dplyr)))
+suppressMessages(suppressWarnings(library(purrr)))
+suppressMessages(suppressWarnings(library(readxl)))
+suppressMessages(suppressWarnings(library(raster)))
+suppressMessages(suppressWarnings(library(countrycode)))
+suppressMessages(suppressWarnings(library(scales)))
+suppressMessages(suppressWarnings(library(terra)))
+suppressMessages(suppressWarnings(library(fs)))
+suppressMessages(suppressWarnings(library(bit64)))
+suppressMessages(suppressWarnings(library(stringr)))
+suppressMessages(suppressWarnings(library(RMariaDB)))
+```
+
+# Import DHS IR & MR data
+DHS IR/MR files are restricted-access and cannot be redistributed. Approved users must download them directly from The DHS Program and run this code locally.
+
+# Variable selection pre-requisites
+```{r pre-select}
+Dataframes <- ls()[sapply(ls(), function(x) inherits(get(x), c("data.frame", "tbl_df")))] 
+Geolocations <-  Dataframes[grepl("^[A-Z]{2,3}[G]$", Dataframes)]
+Dataframes <- Dataframes[grepl("^[A-Z]{2,3}[FM]$", Dataframes)]
+
+Variables <- c("V001", "V130", "V131", "MV001", "MV130", "MV131")
+
+Names <- c(V001 = "ID",
+           V130 = "Religion",
+           V131 = "Ethnicity",
+           MV001 = "ID",
+           MV130 = "Religion",
+           MV131 = "Ethnicity")
+
+MissingVariables <- function(df, Column) {MissColumn <- setdiff(Column, names(df))
+                                          df[MissColumn] <- NA
+                                          return(df)}
+
+ReplaceValue4Label <- function(df) {for(Column in names(df)) {if(!is.null(attr(df[[Column]], 
+                                                                               "labels"))) {labels <- attr(df[[Column]], "labels")
+                                                                                            df[[Column]] <- names(labels)[match(df[[Column]], labels)]}}
+                                                              return(df)}
+```
+
+# Variable selection
+```{r select}
+for (df in Dataframes) {DF <- get(df) %>%
+                              dplyr::select(all_of(intersect(Variables, names(.)))) %>%
+                              rename_with(~ Names[.x]) %>%
+                              MissingVariables(unique(Names)) %>%
+                              ReplaceValue4Label() %>%
+                              mutate(DF = paste0(substr(df, 1, nchar(df) - 1)))
+                        
+                        assign(df, DF)}
+
+for (df in Geolocations) {DF <- get(df) %>%
+                                dplyr::select("DHSCLUST", "LATNUM", "LONGNUM", "geometry") %>%
+                                dplyr::rename(ID = DHSCLUST,
+                                              x = LONGNUM,
+                                              y = LATNUM) %>%
+                                st_drop_geometry() %>%
+                                mutate(DF = paste0(substr(df, 1, nchar(df) - 1)))
+                        
+                        assign(df, DF)}
+
+rm(Dataframes, Geolocations, Names, Variables, MissingVariables, ReplaceValue4Label, df, DF)
+```
+
+# Data merge
+```{r merge}
+Data <- bind_rows(lapply(setdiff(ls()[!grepl("^[A-Za-z]{2}G$", ls())], 
+                                 c("Covariates", "params")), 
+                         function(x) {df <- get(x)
+                                      df[] <- lapply(df, as.character)
+                                      return(df)}))
+
+Geodata <- bind_rows(lapply(ls()[grepl("^[A-Za-z]{2}G$", ls())], function(x) get(x)))
+
+rm(list = setdiff(ls(), c("Data", "Geodata")))
+```
+
+# Recoding
+```{r recode}
+Data <- Data %>%
+        mutate(Judaism = ifelse(Religion %in% c("Jewish", "Zionist", "Zion"), 1,
+                         ifelse(is.na(Religion), NA, 0)),
+               Hinduism = ifelse(Religion %in% c("Hindu", "Hinduism"), 1, 
+                          ifelse(is.na(Religion), NA, 0)),
+               Islam = ifelse(Religion %in% c("Islam", "Islamic", "Moslem", "Muslim", "Muslin", "Bektashi", "Musulman"), 1,
+                       ifelse(is.na(Religion), NA, 0)),
+               Buddhism = ifelse(Religion %in% c("Buddhism", "Buddhist", "Buddhist / Neo-Buddhist", "Budhist"), 1, 
+                          ifelse(is.na(Religion), NA, 0)),
+               Atheism = ifelse(Religion %in% c("Atheist", "Aucune", "no religion", "No religion", "No religion/atheists",
+                                                "No religion/none", "None", "Not religious", "Refused/DK", "DK", "Sans religion",
+                                                "Without religion"), 1,
+                         ifelse(is.na(Religion), NA, 0)),
+               Christianity = ifelse(Religion %in% c("Adventist", "Adventiste", "Aglipay", "Anglican", "Anglican Church", 
+                                                     "Armée de salut", "Methodist", "Assembly of god", "Assembly of God", 
+                                                     "Apostolic sect", "Autres chretiens", "Autres Protestants", "Baptist", 
+                                                     "Charismatic", "Christian", "Christian/protesstan", "Kimbanguiste",
+                                                     "Christian/protestant", "Christianity", "Elcin", "Evangelic", 
+                                                     "Evangelical", "Evangelical/pentecostal", "Evangelical / Protestant",
+                                                     "Evangelical churches", "Evangelical presbyterian", "FJKM/FLM/Anglikana", 
+                                                     "Iglesia ni Cristo", "Jehovah's Witness", "Jehovah's witnesses", 
+                                                     "Jehovah witness", "Jehovah Witness", "Lesotho Evangelical church", 
+                                                     "Other christian", "Other Christian", "Other christians", "Other chritians",
+                                                     "Other Christian (not otherwise categorisable)", "Other christian (specify)", 
+                                                     "Other Christian religion", "Other Christians", "Other Protestants", "CCAP", 
+                                                     "Pentecostal", "Pentecostal/Born Again/Evangelical", "Pentecotist", "Celestes",
+                                                     "Pentecostal/charismatic", "Presbyterian", "Prostestan", "Protestant", 
+                                                     "Protestant Methodist", "Protestant/Anglican", "Seventh-day adventist", 
+                                                     "Roman Catholic", "Salvation Army", "Roman Catholic church", "Roman catholic",
+                                                     "Seventh Day Adventist", "Seventh Day Adventist / Baptist", "Revival church",
+                                                     "Protestant/Methodist/Adventist/Jehova Witness", "Protestante Methodiste", 
+                                                     "Protestant (ex. evangelical, baptist, jehovah witness)", "African instituted churches",
+                                                     "Cathlic", "Catholic", "Catholic/Greek Cath", "Catholic/greek cath.", "Catholique",
+                                                     "Chretien", "Evangelical Presbyterian", "Jehovah’s witness", "Lesotho Evangelical Church",
+                                                     "Non denominational/Charismatic/Apostolic", "Orthodox", "Pentecostal/born again/evangelical",
+                                                     "Salvation army", "Seven days/Baptist", "Seventh day adventist"), 1, 
+                               ifelse(is.na(Religion), NA, 0)),
+               FolkR = ifelse(Religion %in% c("Animalist", "Animist", "Other traditional", "Traditionists", "Traditional/animist", 
+                                              "Traditional/Animist", "Tradition/animist", "Traditional", "Traditional religion",
+                                              "Traditional/spiritualist", "Traditionalist", "Autre traditionnelles", 
+                                              "Indigenous spirituality", "Kirat", "Bundu dia kongo", "Vodoun", "Jain", "Confucian",
+                                              "Animist/Traditional religion", "Animiste", "Traditionalist / Animist", "animist"), 1, 
+                       ifelse(is.na(Religion), NA, 0)),
+               OtherR = ifelse(Religion %in% c("Mammon", "Baha'i", "Vaudousant", "Vuvamu", "Other", "Autres religions", "Khong Hu Chu", 
+                                               "Other religions", "Parsi / Zoroastrian", "Sikh", "Sect", "Universal", "Others",
+                                               "Rastafarian"), 1, 
+                        ifelse(is.na(Religion), NA, 0)),
+               Ethnicity = gsub(" and.*", "", gsub("\\s*/\\s*", "/", stri_trans_general(tolower(Ethnicity), "Latin-ASCII")))) %>%
+        mutate(Ethnicity = ifelse(grepl("other", Ethnicity, ignore.case = TRUE), "other", 
+                           ifelse(Ethnicity %in% c("don't know", "dk, unsure", "refused/not stated", "missing", "refused to say") , NA, 
+                           ifelse(Ethnicity %in% c("dk/none", "no caste/tribe"),  "None", 
+                           ifelse(Ethnicity %in% c("non-gambian", "non arab nationalities", "foreign/non-Congolese", "not-ivorian",
+                                                   "not a Senegalese", "foreign language", "foreign/non-congolese", "not a senegalese"), "other", 
+                           ifelse(Ethnicity %in% c("black/african", "black/mulato/afro-colombian/afro-descendent"), "african", 
+                           ifelse(Ethnicity %in% c("indian/asian"),  "indian", 
+                           ifelse(Ethnicity %in% c("roma (gypsy)", "gypsy (rom)"),  "gypsy", Ethnicity)))))))) %>%
+        dplyr::select(DF, ID, Judaism, Hinduism, Islam, Buddhism, Atheism, Christianity, FolkR, OtherR, Ethnicity)
+```
+
+# Seperate INDIA data for independent processing
+```{r india-subset}
+IAD <- Data %>% filter(DF == "IA")
+IAG <- Geodata %>% filter(DF == "IA")
+
+Data <- Data %>% filter(DF != "IA")
+Geodata <- Geodata %>% filter(DF != "IA")
+```
+
+# Compute Ethnic Fractionalization Index [EFI]
+```{r efi}
+CountPerE <- Data %>%
+             group_by(DF, ID, Ethnicity) %>%
+             summarise(Count = n(), .groups = 'drop') 
+
+NPerG <- CountPerE %>%
+         group_by(DF, ID) %>%
+         summarise(N = sum(Count), .groups = 'drop') 
+
+EFI <- merge(CountPerE, NPerG, by = c("DF", "ID")) %>%
+       mutate(ProportionPerE = Count / N) %>%
+       group_by(DF, ID) %>%
+       summarise(SProportionPerE = sum(ProportionPerE^2), .groups = 'drop') %>%
+       mutate(EFI_prop = round(1 - SProportionPerE, 4)) %>%
+       dplyr::select(-SProportionPerE)
+
+rm(CountPerE, NPerG)
+```
+
+# Compute Religion Diversity Index [RDI]
+```{r rdi}
+RDI <- Data %>%
+       dplyr::select(-Ethnicity) %>%
+       dplyr::group_by(DF, ID) %>%
+       dplyr::summarise(N = n(),
+                        Judaism_percent = round(sum(Judaism, na.rm = TRUE) / N, 4)*100,
+                        Hinduism_percent = round(sum(Hinduism, na.rm = TRUE) / N, 4)*100,
+                        Islam_percent = round(sum(Islam, na.rm = TRUE) / N, 4)*100,
+                        Buddhism_percent = round(sum(Buddhism, na.rm = TRUE) / N, 4)*100,
+                        Atheism_percent = round(sum(Atheism, na.rm = TRUE) / N, 4)*100,
+                        Christianity_percent = round(sum(Christianity, na.rm = TRUE) / N, 4)*100,
+                        OtherR_percent = round(sum(OtherR, na.rm = TRUE) / N, 4)*100,
+                        FolkR_percent = round(sum(FolkR, na.rm = TRUE) / N, 4)*100,
+                        .groups = 'drop') %>%
+       mutate(SumPercentPerR = Judaism_percent^2 + Hinduism_percent^2 + 
+                                Islam_percent^2 + Buddhism_percent^2 + 
+                                Atheism_percent^2 + Christianity_percent^2 + 
+                                OtherR_percent^2 + FolkR_percent^2,
+              InvertedSumPercentPerR = 100^2 - SumPercentPerR,
+              EqualPercentPerR = 100^2 - (SumPercentPerR/8),
+              RDI_prop = ifelse(SumPercentPerR == 0, NA, InvertedSumPercentPerR / EqualPercentPerR)) %>%
+      dplyr::select(DF, ID, RDI_prop)
+```
+
+RDI: (100^2 - SUM(Judaism_prop^2 + Hinduism_prop^2 + Islam_prop^2 + Buddhism_prop^2 + Atheism_prop^2 + Christianity_prop^2 + OtherR_prop^2)/
+     (100^2 - (SUM(Judaism_prop^2 + Hinduism_prop^2 + Islam_prop^2 + Buddhism_prop^2 + Atheism_prop^2 + Christianity_prop^2 + OtherR_prop^2)/8))
+
+# Merge data
+```{r merge2}
+Data <- merge(EFI, RDI, by = c("DF", "ID"))
+
+rm(EFI, RDI)
+```
+
+# Add geolocation
+```{r geolocate}
+Data <- merge(Data, Geodata, by = c("DF", "ID"))
+
+rm(Geodata)
+```
+
+# Split & Remove NAs
+```{r subset}
+Dataframes <- vector()
+
+for (country in unique(Data$DF)) {DF <- Data[Data$DF == country, ]
+                                  for (Column in grep("_prop$", names(DF), value = TRUE)) {
+                                       if (all(is.na(DF[[Column]]))) {Name <- sub("_prop$", "", Column)
+                                                                      Remove <- grep(paste0("^", Name), names(DF), value = TRUE)
+                                                                      DF <- DF[ , !(names(DF) %in% Remove)]}}
+                                  assign(paste0(country), DF)
+                                  Dataframes <- c(Dataframes, paste0(country))}
+
+rm(Column, country, Name, Remove)
+```
+        
+# INDIA independent pre-processing
+```{r india-process}
+sf_use_s2(FALSE)
+
+ADM2 <- st_read("Input/ADM2.gpkg") %>% 
+        dplyr::select(geom) %>%
+        rename("geometry" = geom) %>%
+        mutate(centroid = st_centroid(geometry)) 
+
+sf_use_s2(TRUE)
+
+st_geometry(ADM2) <- "geometry"
+
+IAG <- st_as_sf(IAG, coords = c("x", "y"), crs = 4326) 
+
+sf_use_s2(FALSE)
+
+IAG <- st_join(IAG, ADM2, join = st_within) %>%
+       st_drop_geometry() 
+
+sf_use_s2(TRUE)
+
+st_geometry(IAG) <- "centroid"
+
+IAG <- merge(IAD, IAG, by = c("DF", "ID")) %>% group_by(centroid) %>% mutate(ID = cur_group_id()) %>% ungroup() %>% st_as_sf()
+
+IAG <- IAG[!st_is_empty(IAG$centroid),]
+
+IAG$x <- st_coordinates(IAG)[,1]
+IAG$y <- st_coordinates(IAG)[,2]
+
+IAG <- IAG %>% st_drop_geometry()
+
+rm(IAD, ADM2)
+```
+
+# Cluster aggregation for INDIA
+```{r india-aggregate}
+# Compute Ethnic Fractionalization Index [EFI]
+CountPerE <- IAG %>%
+             group_by(DF, ID, Ethnicity) %>%
+             summarise(Count = n(), .groups = 'drop') 
+
+NPerG <- CountPerE %>%
+         group_by(DF, ID) %>%
+         summarise(N = sum(Count), .groups = 'drop') 
+
+EFI <- merge(CountPerE, NPerG, by = c("DF", "ID")) %>%
+       mutate(ProportionPerE = Count / N) %>%
+       group_by(DF, ID) %>%
+       summarise(SProportionPerE = sum(ProportionPerE^2), .groups = 'drop') %>%
+       mutate(EFI_prop = round(1 - SProportionPerE, 4)) %>%
+       dplyr::select(-SProportionPerE)
+
+# Compute Religion Diversity Index [RDI]
+RDI <- IAG %>%
+       dplyr::select(-Ethnicity) %>%
+       dplyr::group_by(DF, ID) %>%
+       dplyr::summarise(N = n(),
+                        Judaism_percent = round(sum(Judaism, na.rm = TRUE) / N, 4)*100,
+                        Hinduism_percent = round(sum(Hinduism, na.rm = TRUE) / N, 4)*100,
+                        Islam_percent = round(sum(Islam, na.rm = TRUE) / N, 4)*100,
+                        Buddhism_percent = round(sum(Buddhism, na.rm = TRUE) / N, 4)*100,
+                        Atheism_percent = round(sum(Atheism, na.rm = TRUE) / N, 4)*100,
+                        Christianity_percent = round(sum(Christianity, na.rm = TRUE) / N, 4)*100,
+                        OtherR_percent = round(sum(OtherR, na.rm = TRUE) / N, 4)*100,
+                        FolkR_percent = round(sum(FolkR, na.rm = TRUE) / N, 4)*100,
+                        .groups = 'drop') %>%
+       mutate(SumPercentPerR = Judaism_percent^2 + Hinduism_percent^2 + 
+                                Islam_percent^2 + Buddhism_percent^2 + 
+                                Atheism_percent^2 + Christianity_percent^2 + 
+                                OtherR_percent^2 + FolkR_percent^2,
+              InvertedSumPercentPerR = 100^2 - SumPercentPerR,
+              EqualPercentPerR = 100^2 - (SumPercentPerR/8),
+              RDI_prop = ifelse(SumPercentPerR == 0, NA, InvertedSumPercentPerR / EqualPercentPerR)) %>%
+      dplyr::select(DF, ID, RDI_prop)
+
+IA <- merge(EFI, RDI, by = c("ID", "DF"))
+IA <- merge(IA, (IAG %>% dplyr::select(DF, ID, x, y)), by = c("DF", "ID")) %>%
+      distinct()
+
+rm(CountPerE, NPerG, EFI, RDI, IAG)
+```
+
+# Krigging pre-requisites
+```{r pre-krig}
+set.seed(1212)
+
+Dataframes <- c(Dataframes, "IA")
+
+Kriggdata <- list()
+
+for (df in Dataframes) {DF <- get(df)
+
+                        Trainset <- list()
+                        Testset <- list()
+                        TrainCC <- list()
+                        TestCC <- list()
+  
+                        for (Variable in c("EFI", "RDI")) {
+                             Column <- paste0(Variable, "_prop")
+                             if (Column %in% names(DF)) {NotNA <- DF[!is.na(DF[[Column]]), ]
+                                                         Index <- sample(seq_len(nrow(NotNA)), ceiling(0.2 * nrow(NotNA)), replace = FALSE)
+                                                         TrainCC[[Variable]] <- NotNA[-Index, (ncol(NotNA)-1) : ncol(NotNA)]
+                                                         TestCC[[Variable]] <- NotNA[Index, (ncol(NotNA)-1) : ncol(NotNA)]
+                                                         Trainset[[Variable]] <- NotNA[[Column]][-Index] # [80% of data]
+                                                         Testset[[Variable]] <- NotNA[[Column]][Index]}} # [20% of data]
+                       
+                        Kriggdata[[df]] <- list(TrainCC = TrainCC,
+                                                TestCC = TestCC,
+                                                Trainset = Trainset,
+                                                Testset = Testset)}
+
+rm(Column, Index, Variable, NotNA, df, DF, Testset, TrainCC, TestCC, Trainset)
+```
+
+# Krigging function construction for proportions [Must be 0-1 bound]  
+```{r kreg}
+CompareSP1 <- function(TRAINX, 
+                       TESTX, 
+                       TRAINCOORDS,
+                       TESTCOORDS,
+                       dd_values) {results <- data.frame(dd = dd_values, 
+                                                         MAE = numeric(length(dd_values)), 
+                                                         RMSE = numeric(length(dd_values)))
+ 
+                                   for (i in 1:length(dd_values)) {dd <- dd_values[i]
+                                                                   # Adjustment to extreme values to prevent errors
+                                                                   if (any(TRAINX == 0) | any(TRAINX == 1)) {TRAINX[TRAINX == 0] <- 0.0001
+                                                                                                             TRAINX[TRAINX == 1] <- 0.9999}
+                                                                   # Logit transformation 
+                                                                   logitTRANS <- log(TRAINX / (1 - TRAINX))
+                                                                                                           
+                                                                   # Predict
+                                                                   dists <- as.numeric(summary(dist(TRAINCOORDS))[dd])
+                                                                   krig.fit <- Krig(TRAINCOORDS, logitTRANS, theta = dists)
+                                                                   pred.krig <- predict(krig.fit, TESTCOORDS)
+                                                                   backtrans <- exp(pred.krig) / (1 + exp(pred.krig))
+                                                                                                           
+                                                                   # Compute MAE & RMSE for validation
+                                                                   MAE <- mean(abs(backtrans - TESTX))
+                                                                   RMSE <- sqrt(mean((backtrans - TESTX)^2))
+                                                                   results$MAE[i] <- MAE
+                                                                   results$RMSE[i] <- RMSE}
+                                   return(results)}
+```
+
+# Determine best [dd] function construction
+```{r dd}
+selectBestDD1 <- function(TRAINX, TESTX, TRAINCOORDS, TESTCOORDS) {dd_values <- c(2, 3, 5)
+                                                                   results <- CompareSP1(TRAINX, TESTX, TRAINCOORDS, TESTCOORDS, dd_values)
+                                                                   best_index <- which.min(results$MAE + results$RMSE)
+                                                                   best_dd <- results$dd[best_index]
+                                                                   return(best_dd)}
+```
+
+# Determine best [dd] per covariate per country
+```{r}
+BestDD <- list()
+
+for (df in names(Kriggdata)) {for (Variable in c("EFI", "RDI")) {
+    
+                                   if (Variable %in% names(Kriggdata[[df]]$Trainset)) {trainsets <- Kriggdata[[df]]$Trainset[[Variable]]
+                                                                                       testsets <- Kriggdata[[df]]$Testset[[Variable]]
+                                                                                       trainCC <- Kriggdata[[df]]$TrainCC[[Variable]]
+                                                                                       testCC <- Kriggdata[[df]]$TestCC[[Variable]]
+                                                                                        
+                                                                                         train_data <- data.frame(trainsets, trainCC, 
+                                                                                                                  stringsAsFactors = FALSE)
+                                                                                         test_data <- data.frame(testsets, testCC,
+                                                                                                                 stringsAsFactors = FALSE)
+                                                                                         
+                                                                                         train_data <- na.omit(train_data)
+                                                                                         test_data <- na.omit(test_data)
+                                                                                         
+                                                                                         trainsets <- train_data[, 1] 
+                                                                                         trainCC <- train_data[, 2:3]   
+                                                                                         testsets <- test_data[, 1]   
+                                                                                         testCC <- test_data[, 2:3] 
+                                                                                        
+                                  if (any(is.na(trainsets)) || any(is.na(testsets)) || any(is.na(trainCC)) || any(is.na(testCC))) {
+                                      warning(paste("Missing values detected in", Variable, "for", df))
+                                      next }
+                                                                                        
+                                       BestDD[[paste(df, Variable, sep = "_")]] <- selectBestDD1(trainsets,
+                                                                                                 testsets,
+                                                                                                 trainCC,
+                                                                                                 testCC)}}}
+
+rm(testsets, trainsets, Variable, df, testCC, trainCC, train_data, test_data, CompareSP1, selectBestDD1)
+```
+
+# Base raster preparation
+```{r base-raster}
+ADM0 <- st_read("Input/ADM0.gpkg") %>% 
+        dplyr::select(admin0, name, geom) %>%
+        rename("geometry" = geom) %>%
+        dplyr::filter(!(toupper(admin0) %in% c("KY", "LB", "NI"))) %>%
+        dplyr::mutate(admin0 = ifelse(tolower(name) == "moldova", "MB",
+                               ifelse(tolower(name) == "dominican republic", "DR",
+                               ifelse(tolower(name) == "india", "IA",
+                               ifelse(tolower(name) == "liberia", "LB",
+                               ifelse(tolower(name) == "madagascar", "MD",
+                               ifelse(tolower(name) == "kyrgyzstan", "KY",
+                               ifelse(tolower(name) == "namibia", "NM",
+                               ifelse(tolower(name) == "burundi", "BU",
+                               ifelse(tolower(name) == "guatemala", "GU",
+                               ifelse(tolower(name) == "niger", "NI", toupper(admin0)))))))))))) %>%
+        dplyr::select(admin0, geometry)
+
+for (df in Dataframes) {DF <- ADM0 %>% dplyr::filter(admin0 == df)
+                        write_stars(st_rasterize(st_as_sf(DF$geometry[1])), 
+                                    paste0("Output/",
+                                           df, ".tif"))
+                        Raster <- raster(paste0("Output/",
+                                             df, ".tif"))
+                        Raster <- projectRaster(Raster, crs = crs(Raster), res = c(5/111, 5/85), ext = extent(Raster))
+                        
+                        writeRaster(Raster, paste0("Output/",
+                                                   df, ".tif"), overwrite = TRUE) 
+                        
+                        assign(paste0(df, "R"), 
+                               raster(paste0("Output/",
+                                             df, ".tif")), envir = .GlobalEnv)}
+
+rm(ADM0, df, DF, Raster)
+```
+
+# Krigging function construction for rasters
+```{r krig-raster}
+# For proportions [Must be 0-1 bound]                   # Raster
+KrigingTIF1 <- function(X, COORDS, TIFNAME, dd, Raster){aa <- Raster
+                                                        bb <- coordinates(aa)
+                                                        ID <- is.na(getValues(aa))
+                                                        miss <- which(ID == TRUE)
+                                                        nonmiss <- which(ID == FALSE)
+                                                
+                                                        # Adjustment to extreme values to prevent errors
+                                                        for(i in 1:length(X)){if(X[i] == 0){X[i] = 0 + 0.0001}	
+                                                                              if(X[i] == 1){X[i] = 1 - 0.0001}}
+                                                
+                                                        # Logit transformation
+                                                        logittrans <- log(X/(1-X))
+                                                
+                                                        dists	<- as.numeric(summary(dist(COORDS))[dd])
+                                                        krig.fit <- Krig(COORDS, logittrans, theta = dists)
+                                                                                                
+                                                        # Subset dataset [too large otherwise]
+                                                        cutsize <- 10000
+                                                        rows <- dim(bb)[[1]]
+                                                        cuts <- split(bb[, 1:2],
+                                                                      rep(1:ceiling(rows / cutsize),    
+                                                                          each = cutsize,
+                                                                          length.out = rows))
+                                                
+                                                        # Predict
+                                                        pred.out <- NA
+                                                        pred.krig <- list()
+                                                        backtrans	<- list()
+                                                
+                                                        for(ff in 1:length(cuts)){pred.krig[[ff]] <- as.vector(predict(krig.fit,matrix(cuts[[ff]], ncol = 2)))
+                                                                                  backtrans[[ff]] <- as.vector(exp(pred.krig[[ff]]) / (1 + exp(pred.krig[[ff]])))}
+                                                
+                                                        # Combine subset predictions
+                                                        pred.out <- unlist(backtrans)
+                                                        pred.out[miss] <- NA
+                                                        values(aa) <- pred.out
+                                                
+                                                        # Vizualize & export raster
+                                                        plot(aa)
+                                                        writeRaster(aa, TIFNAME, overwrite = TRUE)}
+```
+
+# Generate interpolated rasters
+```{r interpolate}
+for (df in Dataframes) {DF <- get(df)
+                        for (Variable in c("EFI", "RDI")) {
+                        Column <- paste0(Variable, "_prop")
+                        if (Column %in% names(DF)) {DF <- DF[!is.na(DF[[Column]]), ]
+                                                    Raster <- get(paste0(df, "R"), envir = .GlobalEnv)
+                                                    DD <- BestDD[[paste0(df, "_", Variable)]]
+                                                    
+                                                    KrigingTIF1(DF[[Column]], 
+                                                                DF[(ncol(DF) - 1):ncol(DF)], 
+                                                                paste0("Output/",
+                                                                       df, "_", Variable, ".tif"),
+                                                                DD,
+                                                                Raster)}}}
+
+rm(KrigingTIF1, df, DF, Variable, Raster, DD, BestDD, Kriggdata)
+```
+
+# Extract coordinates & values per country-specific raster
+```{r coords}
+Rasters <- list()
+
+for (df in Dataframes) {DF <- get(df)
+                        for (Variable in c("EFI", "RDI")) {
+                             Column <- paste0(Variable, "_prop")
+                             if (Column %in% names(DF)) {
+                                 Raster <- raster(paste0("Output/",
+                                                         df, "_", Variable, ".tif"))
+                                 Raster <- as.data.frame(Raster, xy = TRUE)
+                                 names(Raster)[3] <- "Value" 
+                                 Rasters[[paste0(Variable, "_",df)]] <- Raster}}}
+```
+
+# Merge data per covariate
+```{r merge3}
+GlobalData <- function(Variable) {bind_rows(lapply(Filter(function(x) grepl(Variable, x), names(Rasters)), 
+                                                   function(df) Rasters[[df]]))}
+
+EFI <- GlobalData("EFI") %>% dplyr::filter(!is.na(Value))
+RDI <- GlobalData("RDI") %>% dplyr::filter(!is.na(Value))
+
+rm(df, DF, Raster, Column, GlobalData, Rasters)
+```
+
+# Generate & export global rasters 
+```{r global}
+for (Variable in c("EFI", "RDI")) {
+     DF <- get(Variable)
+     if (all(c("x", "y") %in% colnames(DF))) {r <- raster()
+                                              extent(r) <- extent(DF[, c("x", "y")])
+                                              res(r) <- c(5/111, 5/85)
+                                              Raster <- rasterize(DF[, c("x", "y")], r, field = DF$Value, fun = mean)
+                                              assign(paste0(Variable, "R"), Raster)
+                                                                     
+                                              writeRaster(Raster, 
+                                                          filename = paste0("Output/",
+                                                                            Variable, "R.tif"),
+                                                          format = "GTiff",
+                                                          overwrite = TRUE)
+                                              
+                                              Palette <- colorNumeric(palette = c("#799AE3", "#0F1D41"), 
+                                                                      domain = c(min(values(Raster), na.rm = TRUE),
+                                                                                 max(values(Raster), na.rm = TRUE) + 0.001),
+                                                                      na.color = "transparent")
+                                                                     
+                                              Map <- leaflet() %>%
+                                                     addProviderTiles("CartoDB.Positron") %>%
+                                                     addRasterImage(Raster, opacity = 0.8, 
+                                                                    colors = Palette) %>%
+                                                     addLegend("bottomright", pal = Palette, opacity = 0.8, title = paste0(Variable),
+                                                               values = c(0, 1))
+                                              
+                                             print(Map)} 
+     
+     else {warning(paste("Data frame for", Variable, "does not have the required coordinate columns and is skipped."))}}
+
+rm(list = setdiff(ls(), c("EFIR", "RDIR")))
+```
+
+# Population
+```{r population}
+Population <- raster("Input/global_pop_2026_CN_1km_R2025A_UA_v1.tif")
+
+Raster <- raster(extent(Population), res = c(5/111, 5/85), crs = crs(Population))
+
+Population <- resample(Population, Raster, method = "bilinear")
+Population <- crop(Population, Raster)
+```
+
+# Malaria
+```{r malaria}
+Malaria <- raster("Input/202206_Global_Pf_Incidence_Rate_2020.tif")
+Malaria <- resample(Malaria, Raster, method = "bilinear")
+Malaria <- crop(Malaria, Raster)
+```
+
+# Urbanization
+```{r urbanization, warning = FALSE}
+Urbanization <- raster(do.call(merge, lapply(files <- list.files("Input/Urbanization",
+                                                                 pattern = "\\.(tif)$", full.names = TRUE, ignore.case = TRUE), rast)))
+
+Urbanization <- projectRaster(from = Urbanization, to = Raster, method = "ngb")
+Urbanization <- crop(Urbanization, Raster)
+```
+
+# Consanguinity
+```{r consanguinity}
+ADM0 <- st_read("Input/ADM0.gpkg") %>% 
+        mutate(ISO = countrycode(name, origin = "country.name", destination = "iso3c"),
+               ISO = ifelse(is.na(ISO) & name == "Kosovo", "XKX", ISO)) %>%
+        dplyr::select(ISO, geom)
+
+Consanguinity <- read_excel("Input/Global Consanguinity.xlsx") %>%
+                 mutate(ISO = countrycode(Country, origin = "country.name", destination = "iso3c")) %>%
+                 dplyr::select(ISO, Consanguinity)
+
+Consanguinity <- merge(Consanguinity, ADM0, by = "ISO") %>%
+                 dplyr::select(-ISO) %>%
+                 st_as_sf()
+
+Consanguinity <- rasterize(x = Consanguinity,
+                           y = raster(extent(Raster), res = res(Raster), crs = crs(Raster)), 
+                           field = as.numeric(Consanguinity$Consanguinity), 
+                           fun = mean, 
+                           background = NA)
+```
+
+# EFI
+```{r efi}
+EFI <- read_excel("Input/Global EFI (HIEF).xlsx") %>%
+       group_by(Country) %>%
+       dplyr::filter(Year == max(Year)) %>%
+       ungroup() %>%
+       mutate(Country = ifelse(Country == "Yemen Arab Republic", "Yemen", Country),
+              ISO = countrycode(Country, origin = "country.name", destination = "iso3c")) %>%
+       dplyr::filter(!is.na(ISO)) %>%
+       dplyr::filter(Year == 2013) %>%
+       dplyr::select(ISO, EFI)
+
+EFI <- merge(EFI, ADM0, by = "ISO") %>%
+       dplyr::select(-ISO) %>%
+       st_as_sf()
+
+EFI <- rasterize(x = EFI,
+                 y = raster(extent(Raster), res = res(Raster), crs = crs(Raster)), 
+                 field = as.numeric(EFI$EFI), 
+                 fun = mean, 
+                 background = NA)
+```
+
+# RDI
+```{r rdi}
+RDI <- read_excel("Input/Global Religious Diversity Index (RDI).xlsx") %>%
+       dplyr::select(Country, RDI) %>%
+       mutate(ISO = countrycode(Country, origin = "country.name", destination = "iso3c"),
+              ISO = ifelse(is.na(ISO) & Country == "Kosovo", "XKX",
+                    ifelse(is.na(ISO) & Country == "Netherlands Antilles", "ANT",
+                    ifelse(is.na(ISO) & Country == "Channel Islands", "CHANNEL", ISO)))) %>%
+       dplyr::select(ISO, RDI)
+
+RDI <- merge(RDI, ADM0, by = "ISO") %>%
+       dplyr::select(-ISO) %>%
+       st_as_sf()
+
+RDI <- rasterize(x = RDI,
+                 y = raster(extent(Raster), res = res(Raster), crs = crs(Raster)), 
+                 field = as.numeric(RDI$RDI), 
+                 fun = mean, 
+                 background = NA)
+```
+
+# Update rasters based on interpolated data
+```{r update-raster}
+EFI <- overlay(EFI, resample(EFIR, EFI, method = "bilinear"), fun = function(x, y) {ifelse(!is.na(y), y, x)})
+RDI <- overlay(RDI, resample(RDIR, RDI, method = "bilinear"), fun = function(x, y) {ifelse(!is.na(y), y, x)})
+```
+
+# Covariates
+```{r assemble1}
+Covariates <- stack(Population, Malaria, Urbanization, Consanguinity, EFI, RDI)
+names(Covariates) <- c("Population", "Malaria", "Urbanization", "Consanguinity", "EFI", "RDI")
+
+rm(list = setdiff(ls(), c("Covariates", "Raster")))
+```
+
+# Counselling
+```{r counselling}
+ADM0 <- st_read("Input/ADM0.gpkg") %>% 
+        mutate(ISO = countrycode(name, origin = "country.name", destination = "iso3c"),
+               ISO = ifelse(is.na(ISO) & name == "Kosovo", "XKX", ISO)) %>%
+        dplyr::select(ISO, geom)
+
+Counselling <- read_excel("Input/IthaMaps service availability.xlsx") %>%
+               mutate(Country = ifelse(Country == "Leba0n", "Lebanon",
+                                ifelse(Country == "0rway", "Norway", Country)),
+                      ISO = countrycode(Country, origin = "country.name", destination = "iso3c")) %>%
+               dplyr::filter(Service == "Genetic counselling") %>%
+               dplyr::select(ISO, Availability) %>%
+               rename(Counselling = Availability)
+
+Counselling <- merge(Counselling, ADM0, by = "ISO") %>%
+               dplyr::select(-ISO) %>%
+               st_as_sf()
+
+Counselling <- rasterize(x = Counselling,
+                         y = raster(extent(Raster), res = res(Raster), crs = crs(Raster)), 
+                         field = as.numeric(Counselling$Counselling), 
+                         fun = mean, 
+                         background = NA)
+
+Counselling2 <- resample(Counselling, Raster, method = "bilinear")
+Counselling2 <- crop(Counselling2, Raster)
+
+Counselling <- overlay(Counselling, Counselling2, fun = function(x, y) {ifelse(!is.na(y), y, x)})
+```
+
+# Covariates
+```{r assemble2}
+Covariates <- stack(Covariates, Counselling)
+names(Covariates) <- c("Population", "Malaria", "Urbanization", "Consanguinity", "EFI", "RDI", "Counselling")
+
+rm(list = setdiff(ls(), "Covariates"))
+```
+
+# Prevention
+```{r prevention}
+ADM0 <- st_read("Input/ADM0.gpkg") %>% 
+        mutate(ISO = countrycode(name, origin = "country.name", destination = "iso3c"),
+               ISO = ifelse(is.na(ISO) & name == "Kosovo", "XKX", ISO)) %>%
+        dplyr::select(ISO, geom)
+
+Prevention <- read_excel("Input/IthaMaps service availability.xlsx") %>%
+              mutate(Country = ifelse(Country == "Leba0n", "Lebanon",
+                               ifelse(Country == "0rway", "Norway", Country)),
+                     ISO = countrycode(Country, origin = "country.name", destination = "iso3c")) %>%
+              dplyr::filter(Service == "Prevention program") %>%
+              dplyr::select(ISO, Availability) %>%
+              rename(Prevention = Availability)
+
+Prevention <- merge(Prevention, ADM0, by = "ISO") %>%
+              dplyr::select(-ISO) %>%
+              st_as_sf()
+
+Prevention <- rasterize(x = Prevention,
+                        y = raster(extent(Raster), res = res(Raster), crs = crs(Raster)), 
+                        field = as.numeric(Prevention$Prevention), 
+                        fun = mean, 
+                        background = NA)
+
+Prevention2 <- resample(Prevention, Raster, method = "bilinear")
+Prevention2 <- crop(Prevention2, Raster)
+
+Prevention <- overlay(Prevention, Prevention2, fun = function(x, y) {ifelse(!is.na(y), y, x)})
+```
+
+# Covariates
+```{r assemble3}
+Covariates <- stack(Covariates, Prevention)
+names(Covariates) <- c("Population", "Malaria", "Urbanization", "Consanguinity", "EFI", "RDI", "Counselling", "Prevention")
+
+writeRaster(Covariates, filename = "Output/Covariates3.tiff", 
+            format = "GTiff", 
+            overwrite = TRUE)
+
+rm(list = setdiff(ls(), "Covariates"))
+```

@@ -1,0 +1,33 @@
+Time used:
+    Pre = 0.559, Running = 1.39, Post = 0.0653, Total = 2.02 
+Fixed effects:
+           mean    sd 0.025quant 0.5quant 0.975quant  mode kld
+Intercept -3.85 0.072     -3.993    -3.85     -3.709 -3.85   0
+
+Random effects:
+  Name	  Model
+    i IID model
+
+Model hyperparameters:
+                 mean    sd 0.025quant 0.5quant 0.975quant mode
+Precision for i 0.706 0.064      0.586    0.704      0.838 0.70
+
+Deviance Information Criterion (DIC) ...............: 2408.18
+Deviance Information Criterion (DIC, saturated) ....: 588.29
+Effective number of parameters .....................: 276.18
+
+Watanabe-Akaike information criterion (WAIC) ...: 2365.14
+Effective number of parameters .................: 164.64
+
+Marginal log-Likelihood:  -1786.13 
+CPO, PIT is computed 
+Posterior summaries for the linear predictor and the fitted values are computed
+(Posterior marginals needs also 'control.compute=list(return.marginals.predictor=TRUE)')
+
+                     mean         sd 0.025quant  0.5quant 0.975quant      mode
+Precision for i 0.7062899 0.06427865  0.5864773 0.7041838  0.8382338 0.6999715
+[1] 2408.178
+[1] 2365.144
+[1] -10.75379
+[1] 5.61683
+[1] 0.3298316

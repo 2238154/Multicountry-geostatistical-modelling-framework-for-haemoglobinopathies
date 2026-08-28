@@ -1,0 +1,43 @@
+Time used:
+    Pre = 0.416, Running = 14.9, Post = 0.702, Total = 16 
+Fixed effects:
+            mean    sd 0.025quant 0.5quant 0.975quant
+Intercept -3.862 0.187      -4.23   -3.861     -3.495
+            mode kld
+Intercept -3.861   0
+
+Random effects:
+  Name	  Model
+    s SPDE2 model
+
+Model hyperparameters:
+             mean    sd 0.025quant 0.5quant 0.975quant
+Range for s 0.014 0.001      0.011    0.014      0.017
+Stdev for s 3.136 0.150      2.854    3.132      3.443
+             mode
+Range for s 0.013
+Stdev for s 3.122
+
+Deviance Information Criterion (DIC) ...............: 1288.40
+Deviance Information Criterion (DIC, saturated) ....: -875.07
+Effective number of parameters .....................: -1401.01
+
+Watanabe-Akaike information criterion (WAIC) ...: 4820.86
+Effective number of parameters .................: 962.95
+
+Marginal log-Likelihood:  -3273.24 
+CPO, PIT is computed 
+Posterior summaries for the linear predictor and the fitted values are computed
+(Posterior marginals needs also 'control.compute=list(return.marginals.predictor=TRUE)')
+
+                  mean          sd 0.025quant   0.5quant
+Range for s 0.01364568 0.001429154 0.01103064 0.01357775
+Stdev for s 3.13614355 0.149589862 2.85384921 3.13193551
+            0.975quant       mode
+Range for s 0.01665101 0.01345553
+Stdev for s 3.44271095 3.12217073
+[1] 1288.396
+[1] 4820.864
+[1] -11.60908
+[1] 16.44563
+[1] 0.8740753

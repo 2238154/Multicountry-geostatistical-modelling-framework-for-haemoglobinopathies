@@ -1,0 +1,60 @@
+Time used:
+    Pre = 0.542, Running = 10.7, Post = 0.355, Total = 11.6 
+Fixed effects:
+                 mean     sd 0.025quant 0.5quant
+Intercept      -3.589  1.006     -5.515   -3.612
+Population      0.006  0.033     -0.059    0.006
+Malaria       -18.683 21.923    -61.643  -18.695
+Urbanization   -0.087  0.148     -0.378   -0.087
+Consanguinity   0.424  1.784     -2.986    0.381
+EFI             0.294  1.048     -1.771    0.295
+Counselling    -0.921  1.515     -3.995   -0.889
+              0.975quant    mode kld
+Intercept         -1.526  -3.611   0
+Population         0.071   0.006   0
+Malaria           24.348 -18.695   0
+Urbanization       0.203  -0.087   0
+Consanguinity      4.068   0.380   0
+EFI                2.350   0.295   0
+Counselling        1.977  -0.890   0
+
+Random effects:
+  Name	  Model
+    s SPDE2 model
+   i IID model
+
+Model hyperparameters:
+                 mean    sd 0.025quant 0.5quant 0.975quant
+Range for s     0.166 0.034      0.111    0.162      0.245
+Stdev for s     1.517 0.223      1.137    1.497      2.013
+Precision for i 3.746 0.569      2.749    3.704      4.985
+                 mode
+Range for s     0.153
+Stdev for s     1.450
+Precision for i 3.622
+
+Deviance Information Criterion (DIC) ...............: 2389.81
+Deviance Information Criterion (DIC, saturated) ....: 569.92
+Effective number of parameters .....................: 260.05
+
+Watanabe-Akaike information criterion (WAIC) ...: 2337.81
+Effective number of parameters .................: 149.19
+
+Marginal log-Likelihood:  -1717.59 
+CPO, PIT is computed 
+Posterior summaries for the linear predictor and the fitted values are computed
+(Posterior marginals needs also 'control.compute=list(return.marginals.predictor=TRUE)')
+
+                     mean         sd 0.025quant  0.5quant
+Range for s     0.1663987 0.03412682  0.1114246 0.1623314
+Stdev for s     1.5165539 0.22284253  1.1371711 1.4965423
+Precision for i 3.7461363 0.56926313  2.7493500 3.7040792
+                0.975quant      mode
+Range for s      0.2451508 0.1534682
+Stdev for s      2.0125159 1.4502099
+Precision for i  4.9852873 3.6221345
+[1] 2389.808
+[1] 2337.807
+[1] -8.910825
+[1] 3.914617
+[1] 0.2298742

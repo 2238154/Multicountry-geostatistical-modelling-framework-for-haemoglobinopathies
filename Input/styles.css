@@ -1,0 +1,61 @@
+/* Reset margins and padding for the entire page */
+body {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: row; /* Arrange sidebar and content horizontally */
+}
+
+/* Sidebar (left menu) */
+.readthedown-left {
+  position: fixed; /* Fix the sidebar on the left */
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 250px; /* Adjust the sidebar width */
+  background-color: #f8f9fa; /* Optional: Sidebar background */
+  overflow-y: auto; /* Scroll if the sidebar content is too long */
+  z-index: 1000; /* Ensure it stays on top */
+}
+
+/* Title and main sections: Full width */
+#title, #main {
+  margin-left: 100px; /* Offset to the right of the sidebar */
+  margin-right: 0;
+  padding: 20px; /* Padding for readability */
+  box-sizing: border-box; /* Include padding in width calculations */
+  width: calc(100% - 250px); /* Full width minus sidebar */
+}
+
+/* Content: Keep readable width */
+#content {
+  box-sizing: border-box;
+  max-width: 1500px; /* Restrict content width */
+  width: calc(100% - 250px); /* Ensure content stays within full width */
+}
+
+h1.title {
+  text-align: center; /* Center the text horizontally */
+  margin: 0 auto; /* Center the block element horizontally */
+  padding: 20px 0; /* Add vertical padding for spacing */
+  font-size: 2.5em; /* Optional: Adjust the title size */
+  font-weight: bold; /* Optional: Make the title bold */
+}
+
+pre {
+  background-color: #ffffff; /* White background for output */
+}
+
+.sourceCode {
+  background-color: #EDE9EC; /* Light gray background for code */
+}
+
+#content pre {
+    margin-bottom: 0;
+    padding: 1;
+}
+
+h1 {
+    margin-top: 1;
+    margin-bottom: 1;
+}

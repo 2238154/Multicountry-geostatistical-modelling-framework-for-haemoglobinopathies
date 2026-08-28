@@ -1,0 +1,184 @@
+site_id,adm0,adm1,adm2,lat,lon
+1,United Arab Emirates,Dubai,··,25.17917356,55.24730684
+2,Bangladesh,Khulna,Chuadanga,23.78854575,88.90294757
+3,Bangladesh,Khulna,Jessore,23.21884883,89.34452593
+4,Bangladesh,Rajshani,Bogra,25.00549558,89.31664965
+5,Bangladesh,Rajshani,Rajshahi,24.5752483,88.57496857
+6,Bangladesh,Chittagong,Lakshmipur,23.03210313,90.76541568
+7,Bangladesh,Khulna,Khulna,22.79784762,89.6411666
+8,Bangladesh,Rangpur,Nilphamari,25.78362554,88.89540093
+9,Bangladesh,Dhaka,Madaripur,23.16963784,90.2030111
+10,Bangladesh,Dhaka,Faridpur,23.58812908,89.83525803
+11,Bangladesh,Mymensingh,Sherpur,25.182485,90.06599347
+12,Bangladesh,Tripura,Maulvibazar,24.34428395,91.97743905
+13,Bangladesh,Mymensingh,Mymensingh,24.73719253,90.50810416
+14,Bangladesh,Chittagong,Rangamati,22.50282383,92.20952866
+15,Bangladesh,Dhaka,Narsingdi,24.03724553,90.73257346
+16,Bangladesh,Rangpur,Kurigram,25.96476014,89.68950864
+17,Bangladesh,Chittagong,Cox's Bazar,21.18200378,92.15357485
+18,Bangladesh,Dhaka,Narayanganj,23.57238577,90.4926735
+19,Bangladesh,Barisal,Bhola,22.18419257,90.76352732
+20,Bangladesh,Barisal,Jhalokati,22.63413665,90.26988033
+21,Bulgaria,Sofia City,Stolichna,42.66443856,23.34428694
+22,Bulgaria,Vratsa,Vratsa,43.19367687,23.57004303
+23,Bulgaria,Pleven,Pleven,43.40987406,24.60819555
+24,China,Qinghai Province,Delinghashi,38.21506996,94.63163373
+25,China,Yunnan Province,Kunmingshi,25.03066325,102.6951702
+26,China,Jilin Province,Changchunshi,43.85060333,125.2791005
+27,China,Henan Province,Gushi xian,32.17991838,115.6592188
+28,China,Henan Province,Nanyangshi,33.03867503,112.5619583
+29,China,Zhejiang Province,Ying xian,29.88375493,121.5459928
+30,China,Shandong Province,Linqingshi,36.84274312,115.6929966
+31,China,Tianjin Municipality,Yutian xian,39.89879826,117.7198869
+32,China,Beijing Municipality,Changpingxin,40.25104925,116.1391264
+33,China,Guangxi Zhuang Autonomous Region,Jinxiuyao zuzizhi xian,24.14065969,110.1829792
+34,China,Jiangsu Province,Shuqianshi,33.97651646,118.2651442
+35,China,Shandong Province,Yutai xian,34.93654109,116.7537615
+36,China,Jiangxi Province,Jishui xian,27.21767253,115.1307284
+37,China,Yunnan Province,Longchuan xian,24.17378958,97.79731855
+38,China,Sichuan Province,Wangchang xian,32.23056209,106.282977
+39,China,Heilongjiang Province,Jixishi,45.29175935,130.9572052
+40,China,Sichuan Province,Leshanshi,29.41809075,103.5479892
+41,China,Hunan Province,Shimen xian,29.58600668,111.3638337
+42,China,Tianjin Municipality,Tianjinshi,39.14562139,117.2350325
+43,China,Shandong Province,Jinanshi,36.64875344,116.9865799
+44,China,Shanghai Province,Yangpu,31.32322677,121.5337426
+45,China,Sichuan Province,Beichuan xian,32.01635006,104.2038033
+46,China,Jiangsu Province,Nanjingshi,32.05254865,118.7739688
+47,China,Henan Province,Puyangshi,35.77706468,114.9937862
+48,China,Anhui Province,Anqingshi,30.51643833,117.0769623
+49,China,Heilongjiang Province,Daqingshi,46.63808905,124.8624933
+50,Greece,Thessalia-Central Greece,Thessalias,39.11759516,23.72756128
+51,Greece,Thessalia-Central Greece,Thessalias,39.55789125,21.76085097
+52,Greece,Attica,Attikis,37.96784967,23.47908203
+53,Greece,Crete,Kritis,35.53480865,24.15794603
+54,Greece,Thessalia-Central Greece,Thessalias,39.61083068,22.42984444
+55,Greece,Thessalia-Central Greece,Stereas Elladas,38.69171988,22.41794993
+56,India,Jammu and Kashmir,Srinagar,34.06887154,74.84396068
+57,India,Kerala,Thrissur,10.25905625,76.32780849
+58,India,Uttar Pradesh,Gorakhpur,26.73107228,83.36883389
+59,India,Tamil Nadu,Kanniyakumari,8.186794052,77.43528304
+60,India,Rajasthan,Jaipur,26.93729443,75.78964044
+61,India,Uttar Pradesh,Allahabad,25.45280565,81.83824498
+62,India,Tamil Nadu,Thanjavur,10.42474376,79.31899667
+63,India,Rajasthan,Jhunjhunun,28.12630503,75.39977063
+64,India,Bihar,Patna,25.58424085,85.16302159
+65,India,Jharkhand,Hazaribagh,23.98087179,85.36701934
+66,India,Kerala,Thiruvananthapuram,8.542185824,76.96656232
+67,India,Kerala,Alappuzha,9.287575398,76.52458465
+68,India,Jharkhand,Ranchi,23.33516332,85.31880647
+69,India,Madhya Pradesh,Damoh,23.83648252,79.43534445
+70,India,Kerala,Kollam,9.021217625,76.91988434
+71,India,Bihar,Muzaffarpur,26.12146636,85.35426519
+72,India,Tamil Nadu,Madurai,9.939635832,78.12788708
+73,Iraq,Salah al-Din,Tooz Khurmato,34.88395529,44.63559279
+74,Iraq,Ninawa,Aqra,36.72976688,43.87167493
+75,Iraq,Baghdad,Al-Karkh,33.29299178,44.40630784
+76,Iraq,Maysan,Al-Kahla,31.83979055,47.14995143
+77,Iraq,Karbala,Kerbela,32.62541619,44.03405059
+78,Iraq,Wasit,Al-Kut,32.49971983,45.82148482
+79,Iraq,Salah al-Din,Tikrit,34.60103857,43.67883978
+80,Iraq,Diyala,Khanaqin,34.09741225,45.05867849
+81,Iraq,Al-Anbar,Heet,33.63709942,42.82613184
+82,Iran,Mazandaran,Sari,36.54456722,53.0680717
+83,Iran,East Azerbaijan,Tabriz,37.99784179,46.47102423
+84,Iran,Lorestan,Khoramabad,33.49171137,48.37596905
+85,Iran,Kurdistan,Sanandaj,35.27632132,47.12097158
+86,Iran,Isfahan,Kashan,33.9613453,51.42102856
+87,Iran,Kerman,Baft,28.82262317,56.34665849
+88,Iran,Alborz,Savojbolagh,35.98522363,50.74115848
+89,Iran,Zanjan,Zanjan,36.69378873,48.49581644
+90,Iran,Bushehr,Jam,27.82600172,52.35599172
+91,Iran,Mazandaran,Amol,35.8510509,52.17166613
+92,Iran,Gilan,Rezvanshahr,37.49311485,49.11037783
+93,Iran,Razavi Khorasan,Neyshabur,36.20663554,58.79453572
+94,Iran,Razavi Khorasan,Mashhad,36.28528285,59.56987593
+95,Italy,Toscana,Grosseto,42.68721462,11.33244092
+96,Italy,Toscana,Siena,43.36011037,11.31265678
+97,Italy,Lazio,Roma,41.77518669,12.92095449
+98,Italy,Piemonte,Novara,45.43634249,8.627961443
+99,Italy,Puglia,Bari,40.82321522,17.10875699
+100,Italy,Emilia-Romagna,Piacenza,45.05152219,9.685110373
+101,Italy,Veneto,Vicenza,45.71065292,11.47033673
+102,Italy,Emilia-Romagna,Piacenza,44.62297174,9.331583742
+103,Italy,Piemonte,Torino,45.07929168,7.604259995
+104,Italy,Campania,Avellino,41.06743714,15.05858237
+105,Italy,Campania,Salerno,40.47791593,15.11579288
+106,Italy,Campania,Caserta,41.07031918,14.34948535
+107,Italy,Veneto,Rovigo,45.07132862,11.81621998
+108,Italy,Sicilia,Palermo,38.09241514,13.51331876
+109,Italy,Friuli Venezia Giulia,Trieste,45.6357628,13.78499225
+110,Italy,Toscana,Pistoia,43.86811397,10.8107848
+111,Italy,Friuli Venezia Giulia,Pordenone,45.96846367,12.65265027
+112,Italy,Marche,Pesaro e Urbino,43.81606059,12.58941769
+113,Italy,Calabria,Reggio di Calabria,38.47468399,16.45335587
+114,Italy,Emilia-Romagna,Parma,44.8020361,10.30800405
+115,South Korea,North Gyeongsang,Dalseong-gun,35.69105948,128.4535274
+116,South Korea,North Chungcheong,Chungju-si,36.84702199,127.99177
+117,South Korea,Seoul,Seongbuk-gu,37.58661674,127.0261445
+118,South Korea,South Jeolla,Jangseong-gun,35.37367712,126.8073526
+119,South Korea,North Gyeongsang,Gyeongju-si,35.84282976,129.2067118
+120,South Korea,Gangwon,Hwacheon-gun,38.10727525,127.7090784
+121,South Korea,South Jeolla,Suncheon-si,34.94696717,127.5339765
+122,South Korea,Gyeonggi,Pyeongtaek-si,37.00840724,127.0742728
+123,Sri Lanka,Central Province,Nuwara Eliya District,7.08346972,80.89389233
+124,Sri Lanka,Western Province,Colombo District,6.900073092,79.87583299
+125,Myanmar [Burma],Kachin,Myitkyina,25.3953959,97.39511829
+126,Myanmar [Burma],Magway,Pakokku,21.38672958,94.82562852
+127,Myanmar [Burma],Shan,Langkho,20.22928397,97.72458995
+128,Myanmar [Burma],Mandalay,Mandalay,21.97490332,96.12131543
+129,Myanmar [Burma],Bago,Taungoo,18.94558435,96.43472502
+130,Myanmar [Burma],Mandalay,Meiktila,21.09409848,96.03320118
+131,Myanmar [Burma],Mandalay,Myingyan,21.47494719,95.38933808
+132,Myanmar [Burma],Ayeyarwady,Pyapon,16.14122109,95.48300107
+133,Myanmar [Burma],Tanitharyi,Dawei,14.24582048,98.19586589
+134,Myanmar [Burma],Magway,Minbu,20.57374717,94.65965837
+135,Myanmar [Burma],Shan,Taunggyi,20.79765999,97.17764998
+136,Myanmar [Burma],Magway,Magway,20.36315814,95.39941992
+137,Myanmar [Burma],Bago,Taungoo,18.4073904,96.45919858
+138,Myanmar [Burma],Bago,Bago,17.14473908,96.55227979
+139,Malaysia,Kelantan,Tumpat,6.112506452,102.2135687
+140,Malaysia,Sarawak,Miri,3.863149729,113.7152683
+141,Malaysia,Sarawak,Limbang,4.764582679,115.0187947
+142,Malaysia,Sarawak,Marudi,4.178387492,114.3258603
+143,Pakistan,Khyber Pakhtunkhwa,Battagram,34.79148513,72.93033145
+144,Pakistan,Punjab,Lahore,31.4974458,74.26344993
+145,Pakistan,Punjab,Rajanpur,29.64306405,70.59046618
+146,Pakistan,Punjab,Faisalabad,31.42267612,73.08657716
+147,Pakistan,Khyber Pakhtunkhwa,Orakzai,33.67288235,71.54358312
+148,Pakistan,Punjab,Muzaffargarh,30.18957604,70.95472852
+149,Pakistan,Sindh,Qambar Shahdadkot,27.77100789,68.00012559
+150,Pakistan,Khyber Pakhtunkhwa,Mohmand,34.32467205,71.59129124
+151,Pakistan,Sindh,Badin,25.14712024,68.95124604
+152,Pakistan,Punjab,Sargodha,32.08016845,72.69356297
+153,Pakistan,Gilgit-Baltistan,Kharmang,35.09167277,76.00367644
+154,Pakistan,Sindh,Badin,24.48898669,69.08318064
+155,Pakistan,Punjab,Gujranwala,32.41045206,74.12287762
+156,Pakistan,Islamabad Capital Territory,Islamabad Capital Territory,33.63004345,73.11891656
+157,Pakistan,Punjab,Toba Tek Singh,30.9697449,72.48472659
+158,Pakistan,Sindh,Hyderabad,25.37257482,68.34794926
+159,Pakistan,Punjab,Mandi Bahauddin,32.42108434,73.22069197
+160,Pakistan,Punjab,Multan,30.24633452,71.48553953
+161,Pakistan,Khyber Pakhtunkhwa,Dera Ismail Khan,31.82712474,70.91996692
+162,Pakistan,Punjab,Rahim Yar Khan,28.43671817,70.30518542
+163,Pakistan,Khyber Pakhtunkhwa,Upper Dir,35.20247817,71.87876369
+164,Saudi Arabia,Eastern Region,Al Ahsa Governorate,25.35841796,49.56026894
+165,Saudi Arabia,Jazan Region,Ad Dair,17.33077844,43.11589298
+166,Saudi Arabia,Eastern Region,Al Qatif Governorate,26.64403083,49.96201758
+167,Saudi Arabia,Al Jawf Region,Dawamat Al Jandal,29.80304743,39.68788862
+168,Saudi Arabia,Makkah Region,Makkah Al Mukarramah,21.28240925,39.8244284
+169,Saudi Arabia,Makkah Region,Al Ardiyat,19.44710782,41.83788777
+170,Thailand,Satun Province,Mueang Satun,6.618109557,100.0707083
+171,Thailand,Phangnga Province,Takua Pa,8.863759635,98.3341481
+172,Thailand,Nong Khai Province,Phon Phisai,18.04926587,103.086959
+173,Thailand,Ang Thong Province,Sawaeng Ha,14.74539214,100.3240371
+174,Thailand,Ubon Ratchathani Province,Khemarat,15.97737382,105.0334688
+175,Thailand,Rayong Province,Mueang Rayong,12.67677976,101.2334407
+176,Thailand,Yasothon Province,Thai Charoen,16.11471097,104.4044062
+177,Thailand,Kamphaeng Phet Province,Khlong Lan,16.18329195,99.32476936
+178,Turkey,Istanbul,Esenler,41.04879596,28.85950832
+179,Turkey,Ankara,Yenimahalle,39.96589858,32.83147984
+180,Turkey,Kayseri,Develi,38.39011788,35.48929609
+181,Turkey,Tekirdag,Suleymanpasa,41.00838588,27.52451975
+182,Turkey,Bursa,Nilufer,40.23272783,28.98017604
+183,Turkey,Balikesir,Edremit,39.57653763,27.04304722

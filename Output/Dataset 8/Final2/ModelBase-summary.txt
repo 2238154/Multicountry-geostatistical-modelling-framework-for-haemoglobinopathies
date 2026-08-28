@@ -1,0 +1,30 @@
+Time used:
+    Pre = 0.384, Running = 0.488, Post = 0.0446, Total = 0.916 
+Fixed effects:
+                  mean     sd 0.025quant 0.5quant 0.975quant     mode kld
+Intercept       -4.751  0.013     -4.777   -4.751     -4.725   -4.751   0
+Population       0.029  0.001      0.027    0.029      0.032    0.029   0
+Malaria       -772.693 10.388   -793.053 -772.693   -752.333 -772.693   0
+Urbanization    -0.124  0.007     -0.137   -0.124     -0.110   -0.124   0
+Consanguinity   -5.241  0.023     -5.286   -5.241     -5.196   -5.241   0
+EFI             -2.085  0.010     -2.106   -2.085     -2.065   -2.085   0
+Counselling      4.488  0.027      4.436    4.488      4.540    4.488   0
+
+Deviance Information Criterion (DIC) ...............: -162514.95
+Deviance Information Criterion (DIC, saturated) ....: -163639.31
+Effective number of parameters .....................: -180873.38
+
+Watanabe-Akaike information criterion (WAIC) ...: 1631001.90
+Effective number of parameters .................: 809115.60
+
+Marginal log-Likelihood:  -99967.58 
+CPO, PIT is computed 
+Posterior summaries for the linear predictor and the fitted values are computed
+(Posterior marginals needs also 'control.compute=list(return.marginals.predictor=TRUE)')
+
+NULL
+[1] -162515
+[1] 1631002
+[1] -160.2259
+[1] 251.2965
+[1] 14.85947

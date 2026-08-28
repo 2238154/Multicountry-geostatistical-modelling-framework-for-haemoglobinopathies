@@ -1,0 +1,761 @@
+---
+title: "Modelling framework B"
+author: "Mikaella Kontopoulou"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    self_contained: true
+    thumbnails: true
+    number_sections: true
+    code_folding: show 
+    css: "Input/styles.css"
+---
+
+# Load packages
+```{r load-packages}
+set.seed(123)
+
+suppressMessages(suppressWarnings(library(sf)))  
+suppressMessages(suppressWarnings(library(sn)))
+suppressMessages(suppressWarnings(library(FNN)))
+suppressMessages(suppressWarnings(library(car)))
+suppressMessages(suppressWarnings(library(INLA)))       
+suppressMessages(suppressWarnings(library(pals))) 
+suppressMessages(suppressWarnings(library(MASS)))
+suppressMessages(suppressWarnings(library(mgcv)))
+suppressMessages(suppressWarnings(library(plyr)))
+suppressMessages(suppressWarnings(library(gstat)))
+suppressMessages(suppressWarnings(library(knitr))) 
+suppressMessages(suppressWarnings(library(spdep))) 
+suppressMessages(suppressWarnings(library(units)))
+suppressMessages(suppressWarnings(library(dplyr)))  
+suppressMessages(suppressWarnings(library(purrr)))
+suppressMessages(suppressWarnings(library(rlang)))
+suppressMessages(suppressWarnings(library(tidyr)))
+suppressMessages(suppressWarnings(library(terra))) 
+suppressMessages(suppressWarnings(library(stars)))
+suppressMessages(suppressWarnings(library(ggtext)))
+suppressMessages(suppressWarnings(library(scales)))
+suppressMessages(suppressWarnings(library(raster)))
+suppressMessages(suppressWarnings(library(readxl)))  
+suppressMessages(suppressWarnings(library(dbscan)))
+suppressMessages(suppressWarnings(library(magick))) 
+suppressMessages(suppressWarnings(library(fields)))
+suppressMessages(suppressWarnings(library(xtable)))
+suppressMessages(suppressWarnings(library(gtools)))
+suppressMessages(suppressWarnings(library(geodist)))
+suppressMessages(suppressWarnings(library(moments)))
+suppressMessages(suppressWarnings(library(webshot)))  
+suppressMessages(suppressWarnings(library(ggplot2))) 
+suppressMessages(suppressWarnings(library(ggrepel)))
+suppressMessages(suppressWarnings(library(Metrics)))
+suppressMessages(suppressWarnings(library(bestglm)))
+suppressMessages(suppressWarnings(library(stringi)))
+suppressMessages(suppressWarnings(library(stringr)))
+suppressMessages(suppressWarnings(library(leaflet)))
+suppressMessages(suppressWarnings(library(viridis)))
+suppressMessages(suppressWarnings(library(webshot2))) 
+suppressMessages(suppressWarnings(library(reporter)))    
+suppressMessages(suppressWarnings(library(leafsync))) 
+suppressMessages(suppressWarnings(library(reshape2)))
+suppressMessages(suppressWarnings(library(openxlsx)))
+suppressMessages(suppressWarnings(library(RMariaDB)))
+suppressMessages(suppressWarnings(library(classInt)))
+suppressMessages(suppressWarnings(library(geosphere)))
+suppressMessages(suppressWarnings(library(htmltools))) 
+suppressMessages(suppressWarnings(library(INLAutils)))  
+suppressMessages(suppressWarnings(library(extrafont)))
+suppressMessages(suppressWarnings(library(tidyverse)))  
+suppressMessages(suppressWarnings(library(patchwork)))
+suppressMessages(suppressWarnings(library(factoextra))) 
+suppressMessages(suppressWarnings(library(kableExtra)))  
+suppressMessages(suppressWarnings(library(htmlwidgets)))
+suppressMessages(suppressWarnings(library(countrycode)))
+suppressMessages(suppressWarnings(library(viridisLite)))
+suppressMessages(suppressWarnings(library(matrixStats))) 
+suppressMessages(suppressWarnings(library(interactions)))
+suppressMessages(suppressWarnings(library(rnaturalearth)))
+```
+
+# Load data
+```{r load-data}
+Data <- read.csv("Input/Modelling_EPI-RAF.csv") %>% 
+        dplyr::select(-X)
+
+Population <- raster("Input/global_pop_2026_CN_1km_R2025A_UA_v1.tif")
+
+Covariates <- stack("Input/Covariates3.tiff") 
+names(Covariates) <- c("Population", "Malaria", "Urbanization", "Consanguinity", "EFI", "RDI", "Counselling", "Prevention")
+
+Data1 <- read.xlsx("Output/Dataset 1testing.xlsx")
+Data2 <- read.xlsx("Output/Dataset 2testing.xlsx")
+Data3 <- read.xlsx("Output/Dataset 3testing.xlsx")
+Data4 <- read.xlsx("Output/Dataset 4testing.xlsx")
+Data5 <- read.xlsx("Output/Dataset 5testing.xlsx")
+Data6 <- read.xlsx("Output/Dataset 6testing.xlsx")
+Data7 <- read.xlsx("Output/Dataset 7testing.xlsx")
+
+Datasets3 <- list('Dataset 1'  = Data1,
+                  'Dataset 2'  = Data2,
+                  'Dataset 3'  = Data3,
+                  'Dataset 4'  = Data4,
+                  'Dataset 5'  = Data5,
+                  'Dataset 6'  = Data6,
+                  'Dataset 7'  = Data7)
+
+gpkg_dir <- "Input"
+
+ADM0_gpkg <- file.path(gpkg_dir, "ADM0.gpkg")
+ADM1_gpkg <- file.path(gpkg_dir, "ADM1.gpkg")
+ADM2_gpkg <- file.path(gpkg_dir, "ADM2.gpkg")
+
+ADM0_shapes <- st_read(ADM0_gpkg, quiet = TRUE) %>%
+               dplyr::select(geo_admin0, geom) %>%
+               rename(geo0 = geom)
+
+ADM1_shapes <- st_read(ADM1_gpkg, quiet = TRUE) %>%
+               dplyr::select(geo_admin1, geom) %>%
+               rename(geo1 = geom)
+
+ADM2_shapes <- st_read(ADM2_gpkg, quiet = TRUE) %>%
+               dplyr::select(geo_admin2, geom) %>%
+               rename(geo2 = geom)
+
+ADM0_shapes <- sf::st_transform(ADM0_shapes, sf::st_crs(Covariates))
+ADM1_shapes <- sf::st_transform(ADM1_shapes, sf::st_crs(Covariates))
+ADM2_shapes <- sf::st_transform(ADM2_shapes, sf::st_crs(Covariates))
+
+addSF <- function(Data) {st_as_sf(Data,
+                                  coords = c("longitude", "latitude"),
+                                  crs = crs(Population),
+                                  remove = FALSE)}
+
+Datasets3 <- lapply(Datasets3, addSF)
+
+ADM0_path <- "Input/ADM0.gpkg"
+```
+
+# Model fitting across test datasets
+```{r fit test}
+Fit_INLA <- function(Data,
+                     dataset_name,
+                     Raster_path,
+                     output_root) {message("Running INLA model for: ", dataset_name)
+  
+                                   dataset_output_dir <- file.path(output_root, dataset_name)
+                                   
+                                   if (!dir.exists(dataset_output_dir)) {dir.create(dataset_output_dir, recursive = TRUE)}
+                                   
+                                   # Identify final covariates in this dataset
+                                   non_covariate_columns <- c("total", "count", "value",
+                                                              "ADM0", "geo_admin0", "ADM1", "geo_admin1", "ADM2", "geo_admin2", 
+                                                              "latitude", "longitude", "Cluster", "geometry")
+                                   
+                                   covariate_names <- setdiff(names(Data), non_covariate_columns)
+                                   covariate_names <- setdiff(covariate_names, attr(Data, "sf_column"))
+                                   covariate_names <- covariate_names[covariate_names %in% names(Data)]
+                                   
+                                   if (length(covariate_names) == 0) {stop("No final covariates detected for ", dataset_name)}
+                                   
+                                   # Geographic domain
+                                   Raster <- raster::raster(Raster_path)
+                                   temp <- raster::projectRaster(Raster,
+                                                                 crs = raster::crs(Raster),
+                                                                 res = c(5 / 111, 5 / 85),
+                                                                 method = "ngb",
+                                                                 filename = file.path(dataset_output_dir, "Raster.tif"),
+                                                                 overwrite = TRUE)
+                                   
+                                   Raster <- temp
+                                   
+                                   ADM0 <- ADM0_shapes %>%
+                                           sf::st_transform(crs = raster::crs(Raster))
+                                   
+                                   if ("geo_admin0" %in% names(ADM0) && "geo_admin0" %in% names(Data)) {ADM0 <- ADM0 %>%
+                                                                                                                filter(geo_admin0 %in% unique(Data$geo_admin0))}
+                                   
+                                   Domain <- ADM0 %>%
+                                             sf::st_union() %>%
+                                             sf::st_as_sf() %>%
+                                             as_Spatial()
+                                   
+                                   Raster <- raster::mask(raster::crop(Raster, Domain), Domain)
+                                   rm(temp, Domain)
+                                   
+                                   # Sampled and unsampled coordinates
+                                   Sampled_coords <- as.data.frame(sf::st_coordinates(Data))
+                                   
+                                   Sampled <- Sampled_coords %>%
+                                              mutate(ID = seq_len(nrow(Sampled_coords))) %>%
+                                              bind_cols(Data %>%
+                                                        sf::st_drop_geometry() %>%
+                                                        dplyr::select(all_of(covariate_names)))
+                                   
+                                   Unsampled_sp <- raster::rasterToPoints(Raster, spatial = TRUE)
+                                   
+                                   Unsampled_xy <- data.frame(X = Unsampled_sp$x,
+                                                              Y = Unsampled_sp$y)
+                                   
+                                   # Function to extract unsampled covariate values
+                                   extract_unsampled_covariate <- function(covariate_name, xy) {if (covariate_name %in% names(Covariates)) {val <- log(raster::extract(Covariates[[covariate_name]], xy) + 0.5)
+                                                                                                                                            return(val)}
+                                     
+                                                                                                # Interactions if present
+                                                                                                if (stringr::str_detect(covariate_name, "_x_")) {vars <- stringr::str_split(covariate_name, "_x_", simplify = TRUE)
+                                                                                                                                                 var1 <- vars[1]
+                                                                                                                                                 var2 <- vars[2]
+                                                                                                                                                 
+                                                                                                                                                 if (!(var1 %in% names(Covariates))) {warning("Missing raster covariate for interaction parent: ", var1)
+                                                                                                                                                                                      return(rep(NA_real_, nrow(xy)))}
+                                                                                                                                                 
+                                                                                                                                                 if (!(var2 %in% names(Covariates))) {warning("Missing raster covariate for interaction parent: ", var2)
+                                                                                                                                                                                      return(rep(NA_real_, nrow(xy)))}
+                                                                                                                                                 
+                                                                                                                                                 val1 <- log(raster::extract(Covariates[[var1]], xy) + 0.5)
+                                                                                                                                                 val2 <- log(raster::extract(Covariates[[var2]], xy) + 0.5)
+                                                                                                                                                
+                                                                                                                                                 return(val1 * val2)}
+                                                                                                warning("Covariate not found in raster stack or interaction format: ", covariate_name)
+                                                                                                rep(NA_real_, nrow(xy))}
+                                   
+                                   Unsampled <- Unsampled_xy %>%
+                                                mutate(ID = seq(from = nrow(Sampled) + 1, to = nrow(Sampled) + nrow(Unsampled_xy))) %>%
+                                                bind_cols(purrr::map_dfc(covariate_names, ~ {val <- extract_unsampled_covariate(.x, Unsampled_xy)
+                                                                                             setNames(data.frame(val), .x)}))
+                                   
+                                   # Mesh construction
+                                   lonlat3D <- function(lon, lat) {cbind(cos((lon / 180) * pi) * cos((lat / 180) * pi),
+                                                                         sin((lon / 180) * pi) * cos((lat / 180) * pi),
+                                                                         sin((lat / 180) * pi))}
+                                   
+                                   true.radius.of.earth <- 6371
+                                   
+                                   ADM0_mesh <- sf::read_sf(ADM0_path) %>%
+                                                sf::st_transform(crs = 4326)
+                                   
+                                   if ("geo_admin0" %in% names(ADM0_mesh) && "geo_admin0" %in% names(Data)) {ADM0_mesh <- ADM0_mesh %>%
+                                                                                                                          filter(geo_admin0 %in% unique(Data$geo_admin0))}
+                                   
+                                   ee <- raster::extent(as(ADM0_mesh, "Spatial"))
+                                   
+                                   r0 <- as.numeric(0.05 * fields::rdist.earth(matrix(c(ee[1], ee[3]), ncol = 2),
+                                                                               matrix(c(ee[2], ee[4]), ncol = 2),
+                                                                               miles = FALSE,
+                                                                               R = true.radius.of.earth))
+                                   
+                                   Boundary_sf <- ADM0_mesh %>%
+                                                  sf::st_union() %>%
+                                                  sf::st_boundary() %>%
+                                                  sf::st_cast("LINESTRING")
+                                   
+                                   Segments <- lapply(sf::st_geometry(Boundary_sf),
+                                                      function(line) {coords <- sf::st_coordinates(line)
+                                                                      loc <- lonlat3D(coords[, 1], coords[, 2])
+                                                                      
+                                                                      INLA::inla.mesh.segment(loc = loc, is.bnd = TRUE)})
+                                   
+                                   Boundary_loc <- do.call(rbind,
+                                                           lapply(Segments, function(x) x$loc))
+                                   
+                                   Indexing <- list()
+                                   Offset <- 0
+                                   
+                                   for (s in Segments) {Indexing[[length(Indexing) + 1]] <- matrix(s$idx + Offset, ncol = ncol(s$idx))
+                                   
+                                                        Offset <- Offset + nrow(s$loc)}
+                                   
+                                   Indexing <- do.call(rbind, Indexing)
+                                   
+                                   Boundary <- INLA::inla.mesh.segment(loc = Boundary_loc,
+                                                                       idx = Indexing,
+                                                                       is.bnd = TRUE)
+                                   Boundary$idx <- Boundary$idx[, 2:1]
+                                   
+                                   Mesh <- INLA::inla.mesh.2d(loc = lonlat3D(Sampled[, 1], Sampled[, 2]),
+                                                              boundary = Boundary,
+                                                              cutoff = 50 / true.radius.of.earth,
+                                                              offset = c(500, 1000) / true.radius.of.earth,
+                                                              max.edge = c(100, 1000) / true.radius.of.earth)
+                                   
+                                   # Projection matrix
+                                   A_Sampled <- INLA::inla.spde.make.A(mesh = Mesh, loc = lonlat3D(Sampled[, 1], Sampled[, 2]))
+                                   A_Unsampled <- INLA::inla.spde.make.A(mesh = Mesh, loc = lonlat3D(Unsampled[, 1], Unsampled[, 2]))
+                                   
+                                   # SPDE
+                                   SPDE <- INLA::inla.spde2.pcmatern(mesh = Mesh, alpha = 2, prior.range = c(r0 / true.radius.of.earth, 0.01), prior.sigma = c(3, 0.01))
+                                   
+                                   # Spatial Index
+                                   S_Index <- INLA::inla.spde.make.index(name = "s", n.spde = SPDE$n.spde)
+                                   
+                                   # Stack
+                                   effect_data <- cbind(Intercept = 1, Sampled[, covariate_names, drop = FALSE])
+                                   
+                                   Stack_Sampled <- INLA::inla.stack(tag = "point",
+                                                                     data = list(y = Data$count,
+                                                                                 Sample = Data$total),
+                                                                     A = list(A_Sampled, 1, 1),
+                                                                     effects = list(S_Index, i = Sampled$ID, effect_data))
+                                   
+                                   Stack <- INLA::inla.stack(Stack_Sampled)
+                                   
+                                   # Formula
+                                   covariate_formula <- paste(covariate_names, collapse = " + ")
+                                   Formula <- as.formula(paste0("y ~ -1 + Intercept + ", covariate_formula, " + f(s, model = SPDE)", " + f(i, model = 'iid', hyper = list(prec = list(prior = 'pc.prec', param = c(3, 0.01))))"))
+                                   
+                                   # Model fitting
+                                   Model <- INLA::inla(Formula,
+                                                       family = "binomial",    
+                                                       Ntrials = Sample,
+                                                       inla.mode = "experimental",
+                                                       data = INLA::inla.stack.data(Stack),
+                                                       control.family = list(link = "logit"),
+                                                       control.inla = list(int.strategy = "auto"),
+                                                       control.predictor = list(compute = TRUE,
+                                                                                A = INLA::inla.stack.A(Stack),
+                                                                                link = 1),
+                                                       control.compute = list(config = TRUE,
+                                                                              dic = TRUE,
+                                                                              waic = TRUE,
+                                                                              cpo = TRUE),
+                                                       verbose = TRUE)
+                                   
+                                   # Model-fit summary metrics
+                                   sd_negative_log_cpo   <- sd(-log(Model$cpo$cpo[is.finite(Model$cpo$cpo) & Model$cpo$cpo > 0]))
+                                   se_negative_mean_log_cpo <- sd_negative_log_cpo / sqrt(length(-log(Model$cpo$cpo[is.finite(Model$cpo$cpo) & Model$cpo$cpo > 0])))
+                                   
+                                   Metrics <- tibble(Dataset = dataset_name,
+                                                     N_Sampled = nrow(Data),
+                                                     N_Unsampled = nrow(Unsampled),
+                                                     N_Covariates = length(covariate_names),
+                                                     Covariates = paste(covariate_names, collapse = ", "),
+                                                     DIC = Model$dic$dic,
+                                                     WAIC = Model$waic$waic,
+                                                     Mean_Log_CPO = mean(log(Model$cpo$cpo[Model$cpo$cpo > 0]), na.rm = TRUE),
+                                                     Negative_Mean_Log_CPO = -mean(log(Model$cpo$cpo[Model$cpo$cpo > 0]), na.rm = TRUE),
+                                                     SD_Negative_Log_CPO = sd_negative_log_cpo,
+                                                     SE_Negative_Mean_Log_CPO = se_negative_mean_log_cpo)
+                                   
+                                   return(list(Dataset = dataset_name, Metrics = Metrics))}
+
+INLAResults <- purrr::imap(Datasets3,
+                           ~ Fit_INLA(Data = .x,
+                                      dataset_name = .y,
+                                      Raster_path = "Input/global_px_area_1km.tif",
+                                      output_root = "Output/"))
+
+Evaluation_Metrics <- purrr::map_dfr(INLAResults, ~ .x$Metrics) %>%
+                      dplyr::select(Dataset, DIC, WAIC, Negative_Mean_Log_CPO, SD_Negative_Log_CPO, SE_Negative_Mean_Log_CPO)
+
+openxlsx::write.xlsx(list(Summary_metrics = Evaluation_Metrics,
+                          Individual_CPO = Individual_CPO_Results),
+                     file = file.path("Output/Evaluation_metrics.xlsx"), overwrite = TRUE)
+```
+
+# Cross-validation across test datasets
+```{r validation test}
+cv_output_root <- "Output/"
+
+# Identify covariates already present in each dataset
+get_dataset_covariates <- function(Data) {non_covariate_columns <- c("ADM0", "geo_admin0", "ADM1", "geo_admin1", "ADM2", "geo_admin2",
+                                                                     "Cluster", "total", "count", "value", "longitude", "latitude", "geometry")
+
+                                          covariates <- setdiff(names(Data), non_covariate_columns)
+                                          covariates <- setdiff(covariates, attr(Data, "sf_column"))
+                                          covariates <- covariates[covariates %in% names(Data)]
+                                          covariates}
+
+# 3D lon-lat transformation
+lonlat3D <- function(lon, lat) {cbind(cos((lon / 180) * pi) * cos((lat / 180) * pi),
+                                      sin((lon / 180) * pi) * cos((lat / 180) * pi),
+                                      sin((lat / 180) * pi))}
+
+# Dataset-specific ADM0 boundary
+make_INLA_boundary <- function(Data,
+                               ADM0_path,
+                               adm0_data_col = "geo_admin0",
+                               adm0_boundary_col = "geo_admin0") {ADM0 <- st_read(ADM0_path, quiet = TRUE)
+                               
+                                                                  if (!adm0_data_col %in% names(Data)) {stop("Column ", adm0_data_col, " not found in dataset.", call. = FALSE)}
+                               
+                               if (!adm0_boundary_col %in% names(ADM0)) {stop("Column ", adm0_boundary_col, 
+                                                                              " not found in ADM0 boundary file. Available columns are: ", paste(names(ADM0), collapse = ", "), call. = FALSE)}
+                               
+                               dataset_adm0 <- Data %>%
+                                               st_drop_geometry() %>%
+                                               dplyr::pull(.data[[adm0_data_col]]) %>%
+                                              unique()
+                               
+                               ADM0 <- ADM0 %>%
+                                       dplyr::filter(.data[[adm0_boundary_col]] %in% dataset_adm0)
+                               
+                               if (nrow(ADM0) == 0) {stop("No matching ADM0 boundaries found. Check that ",
+                                                          adm0_data_col, " in Datasets3 matches ",
+                                                          adm0_boundary_col, " in ADM0.gpkg.", call. = FALSE)}
+                               
+                               Boundary <- ADM0 %>%
+                                           st_combine() %>%
+                                           st_cast("MULTILINESTRING") %>%
+                                           st_cast("LINESTRING")
+                               
+                               Segments <- lapply(st_geometry(Boundary), function(line) {coords <- st_coordinates(line)
+                               
+                                                                                         inla.mesh.segment(loc = lonlat3D(coords[, 1], coords[, 2]), is.bnd = TRUE)})
+                               
+                               Boundary_loc <- do.call(rbind, lapply(Segments, function(x) x$loc))
+                               
+                               Indexing <- list()
+                               Offset <- 0
+                               
+                               for (s in Segments) {Indexing[[length(Indexing) + 1]] <- matrix(s$idx + Offset, ncol = ncol(s$idx))
+                               
+                                                    Offset <- Offset + nrow(s$loc)}
+                               
+                               Indexing <- do.call(rbind, Indexing)
+                               
+                               Boundary <- inla.mesh.segment(loc = Boundary_loc,
+                                                             idx = Indexing,
+                                                             is.bnd = TRUE)
+                               
+                               Boundary$idx <- Boundary$idx[, 2:1]
+                               
+                               list(ADM0 = ADM0, Boundary = Boundary)}
+
+# r0 prior-range scale from dataset-specific ADM0 boundary
+get_r0 <- function(ADM0) {ee <- raster::extent(ADM0)
+                          true.radius.of.earth <- 6371
+                          
+                          as.numeric(0.05 * fields::rdist.earth(matrix(c(ee[1], ee[3]), ncol = 2),
+                                                                matrix(c(ee[2], ee[4]), ncol = 2),
+                                                                miles = FALSE,
+                                                                R = true.radius.of.earth))}
+
+# Latent index helpers
+get_latent_index <- function(model, tag) {contents <- model$misc$configs$contents
+                                          if (!tag %in% contents$tag) {return(NA_integer_)}
+                                          contents$start[contents$tag == tag]}
+
+get_spatial_indices <- function(model) {contents <- model$misc$configs$contents
+                                        if (!"s" %in% contents$tag) {return(NULL)}
+
+                                        start <- contents$start[contents$tag == "s"]
+                                        length <- contents$length[contents$tag == "s"]
+                                        
+                                        start + seq_len(length) - 1}
+
+# Cross-validation function
+CrossValidate_INLA <- function(Data,
+                               dataset_name,
+                               ADM0_path,
+                               output_root,
+                               K = 5,
+                               seed = 123,
+                               n_posterior = 1000,
+                               verbose = TRUE) {msg <- function(...) {if (isTRUE(verbose)) {message(...)
+                                                                                            flush.console()}}
+                               
+                               msg("============================================================")
+                               msg("Running cross-validation for: ", dataset_name)
+                               msg("============================================================")
+                               
+                               dataset_output_dir <- file.path(output_root, dataset_name, "CrossValidation")
+                               
+                               if (!dir.exists(dataset_output_dir)) {dir.create(dataset_output_dir, recursive = TRUE)}
+                               
+                               if (!inherits(Data, "sf")) {Data <- st_as_sf(Data, coords = c("longitude", "latitude"), crs = 4326, remove = FALSE)}
+                               
+                               required_columns <- c( "Cluster", "total", "count", "value", "longitude", "latitude", "geo_admin0")
+                               
+                               missing_required <- setdiff(required_columns, names(Data))
+                               
+                               if (length(missing_required) > 0) {stop("Dataset ", dataset_name, " is missing required column(s): ", paste(missing_required, collapse = ", "), call. = FALSE)}
+                               
+                               covariate_names <- get_dataset_covariates(Data)
+                               if (length(covariate_names) == 0) {stop("No covariates detected in ", dataset_name, ". Datasets3 should already contain the wanted covariate columns.", call. = FALSE)}
+                               
+                               msg("Using existing Cluster column.")
+                               msg("Using existing covariates: ", paste(covariate_names, collapse = ", "))
+                               
+                               # Fold partition
+                               # Only clusters with >= 10 observations are split into test folds [excludes noise (Cluster 0)].
+                               # Clusters with < 10 observations remain in training for all folds [includes noise (Cluster 0)].
+                               set.seed(seed)
+                               
+                               Data$Fold <- NA_integer_
+                               
+                               eligible_clusters <- unique(Data$Cluster)
+                               eligible_clusters <- eligible_clusters[!is.na(eligible_clusters) & eligible_clusters != 0]
+                               
+                               for (cl in eligible_clusters) {idx <- which(Data$Cluster == cl)
+                                                              n <- length(idx)
+                                                              
+                                                              if (n >= 10) {Data$Fold[idx] <- sample(rep(seq_len(K), length.out = n))}}
+                               
+                               if (any(Data$Cluster == 0 & !is.na(Data$Fold), na.rm = TRUE)) {stop("Cluster 0 has been assigned to a test fold. Check fold-generation logic.", call. = FALSE)}
+                               
+                               fold_table <- Data %>%
+                                             st_drop_geometry() %>%
+                                             dplyr::count(Cluster, Fold, name = "n") %>%
+                                             dplyr::arrange(Cluster, Fold)
+                               
+                               msg("Rows assigned to test folds: ", sum(!is.na(Data$Fold)))
+                               msg("Rows always retained in training: ", sum(is.na(Data$Fold)))
+                               
+                               # Dataset-specific ADM0 boundary
+                               boundary_obj <- make_INLA_boundary(Data = Data,
+                                                                  ADM0_path = ADM0_path,
+                                                                  adm0_data_col = "geo_admin0",
+                                                                  adm0_boundary_col = "geo_admin0")
+                               
+                               ADM0 <- boundary_obj$ADM0
+                               Boundary <- boundary_obj$Boundary
+                               
+                               true.radius.of.earth <- 6371
+                               r0 <- get_r0(ADM0)
+                               
+                               # Cross-validation folds
+                               FoldEvaluationResults <- list()
+                               FoldPredictionResults <- list()
+                               
+                               for (fold_i in seq_len(K)) {msg("------------------------------------------------------------")
+                                                           msg("Dataset ", dataset_name, " | Fold ", fold_i)
+                                                           msg("------------------------------------------------------------")
+                                                           
+                                                           Test_Prev <- Data[Data$Fold == fold_i, ]
+                                                           Train_Prev <- Data[is.na(Data$Fold) | Data$Fold != fold_i, ]
+                                                           
+                                                           if (nrow(Test_Prev) == 0) {warning("Skipping ", dataset_name, " fold ", fold_i, ": no test rows.")
+                                                                                      next}
+                                                           
+                                                           msg("Training rows: ", nrow(Train_Prev))
+                                                           msg("Testing rows: ", nrow(Test_Prev))
+                                                           
+                                                           # Sampled coordinates
+                                                           Sampled <- cbind(as.data.frame(st_coordinates(Train_Prev)),
+                                                                            st_drop_geometry(Train_Prev)[, covariate_names, drop = FALSE])
+                                                           
+                                                           # Unsampled coordinates
+                                                           Unsampled <- cbind(as.data.frame(st_coordinates(Test_Prev)),
+                                                                              st_drop_geometry(Test_Prev)[, covariate_names, drop = FALSE])
+                                                           
+                                                           # Add ID
+                                                           Sampled$ID <- seq_len(nrow(Sampled))
+                                                           Unsampled$ID <- seq(from = nrow(Sampled) + 1, length.out = nrow(Unsampled))
+                                                           
+                                                           # Mesh construction
+                                                           Mesh <- inla.mesh.2d(loc = lonlat3D(Sampled[, 1], Sampled[, 2]),
+                                                                                boundary = Boundary,
+                                                                                cutoff = 50 / true.radius.of.earth,     
+                                                                                offset = c(500, 1000) / true.radius.of.earth,
+                                                                                max.edge = c(100, 1000) / true.radius.of.earth)
+                                                           
+                                                           # Projector matrices
+                                                           A_Sampled <- inla.spde.make.A(mesh = Mesh, loc = lonlat3D(Sampled[, 1], Sampled[, 2]))
+                                                           A_Unsampled <- inla.spde.make.A(mesh = Mesh, loc = lonlat3D(Unsampled[, 1], Unsampled[, 2]))
+                                                           
+                                                           # SPDE
+                                                           SPDE <- inla.spde2.pcmatern(mesh = Mesh,
+                                                                                       alpha = 2,
+                                                                                       prior.range = c(r0 / true.radius.of.earth, 0.01),
+                                                                                       prior.sigma = c(3, 0.01))
+                                                           
+                                                           # Spatial effect index
+                                                           S_Index <- inla.spde.make.index(name = "s",
+                                                                                           n.spde = SPDE$n.spde)
+                                                           
+                                                           # Stack
+                                                           effect_data <- Sampled[, covariate_names, drop = FALSE]
+                                                           
+                                                           Stack_Sampled <- inla.stack(tag = "point",
+                                                                                       data = list(y = Train_Prev$count,
+                                                                                                   Sample = Train_Prev$total),
+                                                                                       A = list(A_Sampled, 1, 1),
+                                                                                       effects = list(S_Index,
+                                                                                                      i = Sampled$ID,
+                                                                                                      data.frame(Intercept = 1,
+                                                                                                                 effect_data,
+                                                                                                                 check.names = FALSE)))
+                                                           
+                                                           Stack <- inla.stack(Stack_Sampled)
+                                                           
+                                                           # Formula construction
+                                                           covariate_formula <- paste(covariate_names, collapse = " + ")
+                                                           formula_spatial_iid <- as.formula(paste0("y ~ -1 + Intercept + ",
+                                                                                                    covariate_formula,
+                                                                                                    " + f(s, model = SPDE)",
+                                                                                                    " + f(i, model = 'iid', ",
+                                                                                                    "hyper = list(prec = list(prior = 'pc.prec', param = c(3, 0.01))))"))
+                                                           
+                                                          # Fit model 
+                                                           model_type <- "Formula"
+                                                           msg("Dataset ", dataset_name, " | Fold ", fold_i, " | Model ", model_type)
+                                                           
+                                                           Model <- inla(formula_spatial_iid,
+                                                                         family = "binomial",
+                                                                         Ntrials = Sample,
+                                                                         inla.mode = "experimental",
+                                                                         data = inla.stack.data(Stack),
+                                                                         control.family = list(link = "logit"),
+                                                                         control.inla = list(int.strategy = "auto"),
+                                                                         control.predictor = list(compute = TRUE,
+                                                                                                  A = inla.stack.A(Stack),
+                                                                                                  link = 1),
+                                                                         control.compute = list(config = TRUE,
+                                                                                                dic = TRUE,
+                                                                                                waic = TRUE,
+                                                                                                cpo = TRUE),
+                                                                         verbose = TRUE)
+                                                           
+                                                           # Posterior samples
+                                                           posterior_samples <- inla.posterior.sample(n = n_posterior, result = Model)
+                                                           
+                                                           contents <- Model$misc$configs$contents
+                                                           
+                                                           # Latent indices
+                                                           idIntercept <- get_latent_index(Model, "Intercept")
+                                                           
+                                                           cov_ids <- sapply(covariate_names, function(v) {get_latent_index(Model, v)})
+                                                           
+                                                           if (is.na(idIntercept)) {stop("Could not find Intercept in latent contents for ", dataset_name, " fold ", fold_i, ".", call. = FALSE)}
+                                                           
+                                                           if (any(is.na(cov_ids))) {stop("Could not find latent fixed-effect index for covariate(s): ", 
+                                                                                          paste(covariate_names[is.na(cov_ids)], collapse = ", "), " in ", dataset_name, " fold ", fold_i, ".", call. = FALSE)}
+                                                           
+                                                           cov_ids <- as.integer(cov_ids)
+                                                           
+                                                           has_spatial <- any(contents$tag == "s")
+                                                           if (has_spatial) {idSpace <- get_spatial_indices(Model)}
+                                                           
+                                                           has_iid <- any(contents$tag == "i")
+                                                           if (has_iid) {xHyper <- matrix(NA_real_, nrow = length(posterior_samples[[1]]$hyperpar), ncol = n_posterior)
+                                                           for (j in seq_len(n_posterior)) {xHyper[, j] <- posterior_samples[[j]]$hyperpar}
+                                                           
+                                                           iid_effect <- matrix(NA_real_, nrow = nrow(Unsampled), ncol = n_posterior)
+                                                           for (j in seq_len(n_posterior)) {iid_effect[, j] <- rnorm(nrow(Unsampled), sd = xHyper[nrow(xHyper), j]^(-0.5))}}
+                                                           
+                                                           # Prediction matrix
+                                                           predictions <- matrix(NA_real_, nrow = nrow(Unsampled), ncol = n_posterior)
+                                                           cov_matrix <- as.matrix(Unsampled[, covariate_names, drop = FALSE])
+                                                           
+                                                           for (j in seq_len(n_posterior)) {spatial_term <- if (has_spatial) {as.vector(A_Unsampled %*% posterior_samples[[j]]$latent[idSpace])} 
+                                                                                                            else {rep(0, nrow(Unsampled))}
+                                                           
+                                                                                            iid_term <- if (has_iid) {iid_effect[, j]} else {rep(0, nrow(Unsampled))}
+                                                                                            
+                                                                                            fixed_intercept <- posterior_samples[[j]]$latent[idIntercept]
+                                                                                            fixed_covariates <- posterior_samples[[j]]$latent[cov_ids]
+                                                                                            linear_pred <- rep(fixed_intercept, nrow(Unsampled)) + spatial_term + iid_term + as.vector(cov_matrix %*% fixed_covariates)
+                                                                                            
+                                                                                            if (length(linear_pred) == nrow(Unsampled)) {predictions[, j] <- plogis(linear_pred)}
+                                                                                            else {warning("Prediction vector length mismatch in ", dataset_name, " fold ", fold_i, " posterior sample ", j)}}
+                                                           
+                                                           # Summarise predictions
+                                                           prediction_summary <- data.frame(t(apply(predictions, 1, function(x) {c(mean = mean(x, na.rm = TRUE),
+                                                                                                                                   sd = sd(x, na.rm = TRUE),
+                                                                                                                                   q025 = quantile(x, probs = 0.025, na.rm = TRUE),
+                                                                                                                                   q500 = quantile(x, probs = 0.500, na.rm = TRUE),
+                                                                                                                                   q975 = quantile(x, probs = 0.975, na.rm = TRUE))})))
+                                                           
+                                                           names(prediction_summary) <- c("Predicted", "Predicted_sd", "Predicted_q025", "Predicted_q500", "Predicted_q975")
+                                                           
+                                                           prediction_results <- prediction_summary %>%
+                                                                                 dplyr::mutate(Dataset = dataset_name,
+                                                                                               ModelType = model_type,
+                                                                                               Fold = fold_i,
+                                                                                               Observed = Test_Prev$count / Test_Prev$total,
+                                                                                               Observed_percent = 100 * Test_Prev$count / Test_Prev$total,
+                                                                                               Predicted_percent = 100 * Predicted,
+                                                                                               Predicted_sd_percent = 100 * Predicted_sd,
+                                                                                               Predicted_q025_percent = 100 * Predicted_q025,
+                                                                                               Predicted_q500_percent = 100 * Predicted_q500,
+                                                                                               Predicted_q975_percent = 100 * Predicted_q975,
+                                                                                               total = Test_Prev$total,
+                                                                                               count = Test_Prev$count,
+                                                                                               value = Test_Prev$value,
+                                                                                               longitude = Test_Prev$longitude,
+                                                                                               latitude = Test_Prev$latitude,
+                                                                                               Cluster = Test_Prev$Cluster)
+                                                           
+                                                           # Validation metrics
+                                                           truth <- Test_Prev$count / Test_Prev$total
+                                                           pred <- prediction_summary$Predicted
+                                                           
+                                                           MAE <- mean(abs(pred - truth), na.rm = TRUE)
+                                                           RMSE <- sqrt(mean((pred - truth)^2, na.rm = TRUE))
+                                                           R <- suppressWarnings(cor(pred, truth, use = "pairwise.complete.obs"))
+                                                           
+                                                           MeanLogCPO <- suppressWarnings(mean(log(Model$cpo$cpo[Model$cpo$cpo > 0]), na.rm = TRUE))
+                                                           
+                                                           fold_metrics <- tibble::tibble(Dataset = dataset_name,
+                                                                                          ModelType = model_type,
+                                                                                          Fold = fold_i,
+                                                                                          N_Train = nrow(Train_Prev),
+                                                                                          N_Test = nrow(Test_Prev),
+                                                                                          N_Covariates = length(covariate_names),    
+                                                                                          Covariates = paste(covariate_names, collapse = ", "),
+                                                                                          DIC = Model$dic$dic,
+                                                                                          WAIC = Model$waic$waic,
+                                                                                          Mean_Log_CPO = MeanLogCPO,
+                                                                                          Negative_Mean_Log_CPO = -MeanLogCPO,
+                                                                                          MAE = MAE,
+                                                                                          RMSE = RMSE,
+                                                                                          R = R)
+
+                                                           FoldEvaluationResults[[paste(dataset_name, model_type, fold_i, sep = "_")]] <- fold_metrics
+                                                           FoldPredictionResults[[paste(dataset_name, model_type, fold_i, sep = "_")]] <- prediction_results}
+                               
+                               EvaluationSummary <- dplyr::bind_rows(FoldEvaluationResults)
+                               
+                               EvaluationMean <- EvaluationSummary %>%
+                                                 dplyr::group_by(Dataset, ModelType) %>%
+                                                 dplyr::summarise(N_Folds = dplyr::n(),
+                                                                  Total_Test_N = sum(N_Test, na.rm = TRUE),
+                                                                  Mean_MAE = mean(MAE, na.rm = TRUE),
+                                                                  SD_MAE = stats::sd(MAE, na.rm = TRUE),
+                                                                  Mean_RMSE = mean(RMSE, na.rm = TRUE),
+                                                                  SD_RMSE = stats::sd(RMSE, na.rm = TRUE),
+                                                                  Mean_R = mean(R, na.rm = TRUE),
+                                                                  SD_R = stats::sd(R, na.rm = TRUE),
+                                                                  Mean_DIC = mean(DIC, na.rm = TRUE),
+                                                                  Mean_WAIC = mean(WAIC, na.rm = TRUE),
+                                                                  Mean_Negative_Mean_Log_CPO = mean(Negative_Mean_Log_CPO, na.rm = TRUE),
+                                                                  .groups = "drop") %>%
+                                                 dplyr::arrange(Mean_RMSE)
+                               
+                               PredictionResults <- dplyr::bind_rows(FoldPredictionResults)
+                                                        
+                               OverallCorrelation <- PredictionResults %>%
+                                                     dplyr::group_by(Dataset, ModelType) %>%
+                                                     dplyr::summarise(Overall_R = stats::cor(Predicted, Observed, use = "pairwise.complete.obs"), .groups = "drop")
+                                                        
+                               EvaluationMean <- EvaluationMean %>%
+                                                 dplyr::left_join(OverallCorrelation, by = c("Dataset", "ModelType")) %>%
+                                                 distinct()                                                        
+                               
+                               msg("Finished cross-validation for: ", dataset_name)
+                               
+                               list(Dataset = dataset_name,
+                                    EvaluationSummary = EvaluationSummary,
+                                    EvaluationMean = EvaluationMean,
+                                    PredictionResults = PredictionResults)}
+
+CVResults <- purrr::imap(Datasets3, ~ CrossValidate_INLA(Data = .x,
+                                                         dataset_name = .y,
+                                                         ADM0_path = ADM0_path,
+                                                         output_root = cv_output_root,
+                                                         K = 5,
+                                                         seed = 123,
+                                                         n_posterior = 1000,
+                                                         verbose = TRUE))
+
+Validation_Metrics <- purrr::map_dfr(CVResults, ~ .x$EvaluationMean) %>%
+                      dplyr::select(Dataset, Mean_MAE, SD_MAE, Mean_RMSE, SD_RMSE, Overall_R)
+
+Validation_Fold_Metrics <- purrr::map_dfr(CVResults, ~ .x$EvaluationSummary) %>%
+                           dplyr::arrange(Dataset, Fold)
+
+openxlsx::write.xlsx(list(Overall_metrics = Validation_Metrics,
+                          Fold_metrics = Validation_Fold_Metrics),
+                     file = file.path("Output/Validation_metrics.xlsx"), overwrite = TRUE)
+
+rm(CVResults, Validation_Metrics)
+```
