@@ -2233,7 +2233,7 @@ CrossValidate_INLA_Dataset8 <- function(Data,
                                                                                     message("Dataset ", dataset_name, " | Fold ", fold_i)
                                                                                     message("------------------------------------------------------------")
                                                                                     
-                                                                                    Test_Prev <- Data[Data$Fold == fold_i, ]
+                                                                                    Test_Prev <- Data[!is.na(Data$Fold) & Data$Fold == fold_i,]
                                                                                     Train_Prev <- Data[is.na(Data$Fold) | Data$Fold != fold_i, ]
                                                                                     
                                                                                     if (nrow(Test_Prev) == 0) {warning("Skipping ", dataset_name, " fold ", fold_i, ": no test rows.")
